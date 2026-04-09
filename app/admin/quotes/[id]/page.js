@@ -6,6 +6,7 @@ import StatusBadge from '@/components/StatusBadge'
 import SkeletonCardDefault, { SkeletonRow } from '@/components/SkeletonCard'
 const SkeletonCard = SkeletonCardDefault
 import { DEFAULT_UNIT_PRICES, DETECTION_LABELS, DETECTION_COLOURS } from '@/lib/mockData'
+import { Download } from 'lucide-react'
 
 function normalise(name) {
   return DETECTION_LABELS[name] || name?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'
@@ -92,6 +93,13 @@ export default function QuoteDetailPage() {
         </div>
 
         <div className="flex gap-2">
+          <a
+            href={`/api/quotes/${id}/pdf`}
+            target="_blank"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-[#1c1c1e] dark:text-[#f5f5f7]"
+          >
+            <Download size={16} strokeWidth={1.5} /> Download PDF
+          </a>
           {quote.status === 'draft' && (
             <motion.button
               onClick={handleSend}

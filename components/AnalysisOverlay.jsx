@@ -48,7 +48,7 @@ export default function AnalysisOverlay({ onClose }) {
     try {
       // Dynamic import pdfjs
       const pdfjsLib = await import('pdfjs-dist')
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
       const pageImages = []
       for (let i = 1; i <= pdf.numPages; i++) {

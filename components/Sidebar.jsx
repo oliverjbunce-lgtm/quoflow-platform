@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, ScanLine, FileText, Package, Users,
-  BarChart3, Plug, Settings,
+  BarChart3, Plug, Settings, LogOut,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
@@ -93,7 +93,7 @@ export default function Sidebar({ user, tenant, pendingCount = 0, analysisRunnin
           <div className="text-xs text-[#8e8e93] mb-3 font-medium truncate">{tenant.name}</div>
         )}
         {user && (
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 mb-3">
             <div className="w-8 h-8 rounded-full bg-[#0A84FF] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
               {user.name?.charAt(0)?.toUpperCase() || 'U'}
             </div>
@@ -103,6 +103,16 @@ export default function Sidebar({ user, tenant, pendingCount = 0, analysisRunnin
             </div>
           </div>
         )}
+        <button
+          onClick={async () => {
+            await fetch('/api/auth/logout', { method: 'POST' })
+            window.location.href = '/auth/login'
+          }}
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors group"
+        >
+          <LogOut size={16} strokeWidth={1.5} className="group-hover:text-red-500" />
+          <span>Sign out</span>
+        </button>
       </div>
     </aside>
   )

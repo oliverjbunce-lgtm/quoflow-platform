@@ -19,7 +19,7 @@ export default function PortalSubmitPage() {
   async function renderPDFPages(ab) {
     try {
       const pdfjsLib = await import('pdfjs-dist')
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
+      pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
       const pdf = await pdfjsLib.getDocument({ data: ab }).promise
       const imgs = []
       for (let i = 1; i <= Math.min(pdf.numPages, 10); i++) {

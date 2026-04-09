@@ -2,7 +2,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter } from 'next/navigation'
 import ThemeToggle from './ThemeToggle'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { Bell } from 'lucide-react'
 
 const PAGE_TITLES = {
   '/admin/dashboard': 'Dashboard',
@@ -15,17 +16,71 @@ const PAGE_TITLES = {
   '/admin/settings': 'Settings',
 }
 
+function timeAgo(timestamp) {
+  const seconds = Math.floor(Date.now() / 1000) - timestamp
+  if (seconds < 60) return 'just now'
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
+  return `${Math.floor(seconds / 86400)}d ago`
+}
+
 export default function TopBar({ user, onMenuOpen }) {
   const pathname = usePathname()
   const router = useRouter()
   const [loggingOut, setLoggingOut] = useState(false)
+  const [notifications, setNotifications] = useState([])
+  const [showNotifications, setShowNotifications] = useState(false)
+  const bellRef = useRef(null)
 
-  const title = PAGE_TITLES[pathname] || 
+  const title = PAGE_TITLES[pathname] ||
     (pathname.startsWith('/admin/quotes/') ? 'Quote Detail' : 'Quoflow')
+
+  const unread = notifications.filter(n => !n.read).length
+
+  useEffect(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e) {
+      if (bellRef.current && !bellRef.current.contains(e.target)) {
+        setShowNotifications(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  async function fetchNotifications() {
+    try {
+      const res = await fetch('/api/notifications')
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data.notifications || [])
+      }
+    } catch {}
+  }
+
+  async function markRead(id) {
+    try {
+      await fetch(`/api/notifications/${id}/read`, { method: 'POST' })
+      setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: 1 } : n))
+    } catch {}
+  }
+
+  async function markAllRead() {
+    try {
+      await fetch('/api/notifications/read-all', { method: 'POST' })
+      setNotifications(prev => prev.map(n => ({ ...n, read: 1 })))
+    } catch {}
+  }
 
   async function handleLogout() {
     setLoggingOut(true)
-    await fetch('/api/auth/me', { method: 'DELETE' })
+    await fetch('/api/auth/logout', { method: 'POST' })
     router.push('/auth/login')
   }
 
@@ -60,17 +115,50 @@ export default function TopBar({ user, onMenuOpen }) {
         <ThemeToggle />
 
         {/* Notification bell */}
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
-          className="relative w-9 h-9 rounded-xl flex items-center justify-center bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-300"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-          </svg>
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#0A84FF] rounded-full" />
-        </motion.button>
+        <div className="relative" ref={bellRef}>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowNotifications(!showNotifications)}
+            className="relative p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+          >
+            <Bell size={20} strokeWidth={1.5} className="text-gray-600 dark:text-gray-300" />
+            {unread > 0 && (
+              <span className="absolute top-1 right-1 w-4 h-4 bg-[#0A84FF] text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                {unread > 9 ? '9+' : unread}
+              </span>
+            )}
+          </motion.button>
+
+          {/* Dropdown */}
+          {showNotifications && (
+            <div className="absolute right-0 top-12 w-80 bg-white dark:bg-zinc-900 rounded-2xl shadow-xl border border-gray-200 dark:border-white/10 overflow-hidden z-50">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-white/5">
+                <span className="font-semibold text-sm text-[#1c1c1e] dark:text-[#f5f5f7]">Notifications</span>
+                <button onClick={markAllRead} className="text-xs text-[#0A84FF] hover:text-[#0070d6]">Mark all read</button>
+              </div>
+              <div className="max-h-96 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="py-12 text-center text-sm text-gray-400">No notifications</div>
+                ) : notifications.map(n => (
+                  <div
+                    key={n.id}
+                    onClick={() => {
+                      markRead(n.id)
+                      if (n.link) router.push(n.link)
+                      setShowNotifications(false)
+                    }}
+                    className={`px-4 py-3 border-b border-gray-50 dark:border-white/5 cursor-pointer hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${!n.read ? 'bg-blue-50/50 dark:bg-blue-950/20' : ''}`}
+                  >
+                    <p className="text-sm font-medium text-[#1c1c1e] dark:text-[#f5f5f7]">{n.title}</p>
+                    {n.body && <p className="text-xs text-gray-500 mt-0.5">{n.body}</p>}
+                    <p className="text-xs text-gray-400 mt-1">{timeAgo(n.created_at)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* User avatar */}
         {user && (

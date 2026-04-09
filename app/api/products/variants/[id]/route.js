@@ -4,13 +4,13 @@ import { requireAuth } from '@/lib/auth'
 
 export async function PUT(req, { params }) {
   try {
-    initDb()
+    await initDb()
     const session = await requireAuth(req).catch(() => null)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { id } = params
+    const { id } = await params
     const body = await req.json()
-    const { price, sku, width_mm, height_mm, core, finish, frame, active } = body
+    const { price, sku, width_mm, height_mm, core, finish, frame, handing, active } = body
 
     const fields = []
     const values = []
@@ -22,15 +22,29 @@ export async function PUT(req, { params }) {
     if (core !== undefined) { fields.push('core = ?'); values.push(core) }
     if (finish !== undefined) { fields.push('finish = ?'); values.push(finish) }
     if (frame !== undefined) { fields.push('frame = ?'); values.push(frame) }
+    if (handing !== undefined) { fields.push('handing = ?'); values.push(handing) }
     if (active !== undefined) { fields.push('active = ?'); values.push(active ? 1 : 0) }
 
     if (!fields.length) return NextResponse.json({ error: 'No fields to update' }, { status: 400 })
 
     values.push(id)
-    query(`UPDATE product_variants SET ${fields.join(', ')} WHERE id = ?`, values)
+    await query(`UPDATE product_variants SET ${fields.join(', ')} WHERE id = ?`, values)
 
-    const updated = query('SELECT * FROM product_variants WHERE id = ?', [id]).rows[0]
-    return NextResponse.json({ variant: updated })
+    const updatedResult = await query('SELECT * FROM product_variants WHERE id = ?', [id])
+    return NextResponse.json({ variant: updatedResult.rows[0] })
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(req, { params }) {
+  try {
+    await initDb()
+    const session = await requireAuth(req).catch(() => null)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const { id } = await params
+    await query('UPDATE product_variants SET active = 0 WHERE id = ?', [id])
+    return NextResponse.json({ success: true })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }

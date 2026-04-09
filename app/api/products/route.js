@@ -5,25 +5,26 @@ import { randomUUID } from 'crypto'
 
 export async function GET(req) {
   try {
-    initDb()
+    await initDb()
     const session = await requireAuth(req).catch(() => null)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const tenantId = session.tenantId || 'demo'
 
-    const products = query(
+    const productsResult = await query(
       'SELECT * FROM products WHERE tenant_id = ? AND active = 1 ORDER BY name',
       [tenantId]
-    ).rows
+    )
+    const products = productsResult.rows
 
-    const variants = query(
+    const variantsResult = await query(
       `SELECT pv.* FROM product_variants pv
        JOIN products p ON pv.product_id = p.id
        WHERE p.tenant_id = ? AND pv.active = 1
        ORDER BY pv.width_mm, pv.height_mm`,
       [tenantId]
-    ).rows
+    )
+    const variants = variantsResult.rows
 
-    // Group variants by product
     const variantMap = {}
     for (const v of variants) {
       if (!variantMap[v.product_id]) variantMap[v.product_id] = []
@@ -44,18 +45,35 @@ export async function GET(req) {
 
 export async function POST(req) {
   try {
-    initDb()
+    await initDb()
     const session = await requireAuth(req).catch(() => null)
     if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const tenantId = session.tenantId || 'demo'
 
-    const { name, category = 'door' } = await req.json()
+    const { name, category = 'door', description } = await req.json()
     if (!name) return NextResponse.json({ error: 'Name required' }, { status: 400 })
 
     const id = randomUUID()
-    query('INSERT INTO products (id, tenant_id, name, category) VALUES (?, ?, ?, ?)', [id, tenantId, name, category])
+    await query(
+      'INSERT INTO products (id, tenant_id, name, category) VALUES (?, ?, ?, ?)',
+      [id, tenantId, name, category]
+    )
 
-    return NextResponse.json({ product: { id, tenant_id: tenantId, name, category } })
+    return NextResponse.json({ product: { id, tenant_id: tenantId, name, category, variants: [] } })
+  } catch (e) {
+    return NextResponse.json({ error: e.message }, { status: 500 })
+  }
+}
+
+export async function DELETE(req) {
+  try {
+    await initDb()
+    const session = await requireAuth(req).catch(() => null)
+    if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const tenantId = session.tenantId || 'demo'
+    const { id } = await req.json()
+    await query('UPDATE products SET active = 0 WHERE id = ? AND tenant_id = ?', [id, tenantId])
+    return NextResponse.json({ success: true })
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 500 })
   }
