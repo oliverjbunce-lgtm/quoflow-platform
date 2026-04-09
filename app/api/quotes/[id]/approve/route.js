@@ -3,9 +3,8 @@ import { Resend } from 'resend'
 import { initDb, query } from '@/lib/db'
 import { requireAdmin } from '@/lib/auth'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-
 export async function POST(req, { params }) {
+  const resend = new Resend(process.env.RESEND_API_KEY)
   try {
     await initDb()
     const user = await requireAdmin(req)
