@@ -410,11 +410,40 @@ export default function AnalysisOverlay({ onClose }) {
       const scaleX = displayW / (img.naturalWidth || displayW)
       const scaleY = displayH / (img.naturalHeight || displayH)
 
-      detections.forEach(det => {
-        const bbox = det.bbox || det.box || det.xyxy || []
-        if (!bbox || bbox.length < 4) return
+      // Polyfill ctx.roundRect for older browsers
+      if (!ctx.roundRect) {
+        ctx.roundRect = function(x, y, w, h, r) {
+          const radius = Array.isArray(r) ? r[0] : (r || 0)
+          ctx.beginPath()
+          ctx.moveTo(x + radius, y)
+          ctx.lineTo(x + w - radius, y)
+          ctx.quadraticCurveTo(x + w, y, x + w, y + radius)
+          ctx.lineTo(x + w, y + h - radius)
+          ctx.quadraticCurveTo(x + w, y + h, x + w - radius, y + h)
+          ctx.lineTo(x + radius, y + h)
+          ctx.quadraticCurveTo(x, y + h, x, y + h - radius)
+          ctx.lineTo(x, y + radius)
+          ctx.quadraticCurveTo(x, y, x + radius, y)
+          ctx.closePath()
+        }
+      }
 
-        let [x1, y1, x2, y2] = bbox
+      detections.forEach(det => {
+        const rawBbox = det.bbox || det.box || det.xyxy
+        if (!rawBbox) return
+
+        // Handle both array [x1,y1,x2,y2] and object {x1,y1,x2,y2} formats
+        let x1, y1, x2, y2
+        if (Array.isArray(rawBbox)) {
+          if (rawBbox.length < 4) return
+          ;[x1, y1, x2, y2] = rawBbox
+        } else if (typeof rawBbox === 'object') {
+          x1 = rawBbox.x1; y1 = rawBbox.y1; x2 = rawBbox.x2; y2 = rawBbox.y2
+        } else {
+          return
+        }
+
+        if (x1 == null || y1 == null || x2 == null || y2 == null) return
 
         // Handle normalised coords (0–1 range) — convert to pixels
         if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
