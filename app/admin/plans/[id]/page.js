@@ -94,13 +94,33 @@ export default function PlanReviewPage() {
     const canvas = canvasRef.current
 
     const draw = () => {
-      const displayW = img.clientWidth
-      const displayH = img.clientHeight
-      if (!displayW || !displayH) return
-      canvas.width = displayW
-      canvas.height = displayH
+      const naturalW = img.naturalWidth || 1
+      const naturalH = img.naturalHeight || 1
+      const elementW = img.clientWidth
+      const elementH = img.clientHeight
+      if (!elementW || !elementH) return
+
+      // object-contain: find the actual rendered content size
+      const naturalAspect = naturalW / naturalH
+      const elementAspect = elementW / elementH
+      let contentW, contentH
+      if (naturalAspect > elementAspect) {
+        contentW = elementW
+        contentH = elementW / naturalAspect
+      } else {
+        contentH = elementH
+        contentW = elementH * naturalAspect
+      }
+
+      canvas.width = contentW
+      canvas.height = contentH
+      canvas.style.width = contentW + 'px'
+      canvas.style.height = contentH + 'px'
+      canvas.style.left = ((elementW - contentW) / 2) + 'px'
+      canvas.style.top = ((elementH - contentH) / 2) + 'px'
+
       const ctx = canvas.getContext('2d')
-      ctx.clearRect(0, 0, displayW, displayH)
+      ctx.clearRect(0, 0, contentW, contentH)
 
       if (!ctx.roundRect) {
         ctx.roundRect = function(x, y, w, h, r) {
@@ -116,8 +136,8 @@ export default function PlanReviewPage() {
         }
       }
 
-      const scaleX = displayW / (img.naturalWidth || displayW)
-      const scaleY = displayH / (img.naturalHeight || displayH)
+      const scaleX = contentW / naturalW
+      const scaleY = contentH / naturalH
       const pageDetections = detections.filter(d => (d.page_num || 1) === currentPage)
 
       pageDetections.forEach(det => {

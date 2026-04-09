@@ -28,64 +28,105 @@ function getUnitPrice(name) {
 }
 
 // ─── DetectionsTab ────────────────────────────────────────────────────────────
+const DOOR_TYPES = [
+  'L_prehung_door', 'R_prehung_door', 'Double_prehung_door',
+  'S_cavity_slider', 'Double_cavity_slider', 'Bi_folding_door',
+  'Double_bifold_door', 'Wardrobe_sliding_two_doors_1',
+  'Wardrobe_sliding_three_doors', 'Barn_wall_slider',
+  'Exterior_door', 'Other',
+]
+
 function DetectionsTab({ detections, setDetections }) {
-  const updateQty = (i, qty) => {
+  const [expandedId, setExpandedId] = useState(null)
+
+  const update = (i, changes) => {
     const updated = [...detections]
-    updated[i] = { ...updated[i], qty: Math.max(1, qty) }
-    setDetections(updated)
-  }
-  const updatePrice = (i, price) => {
-    const updated = [...detections]
-    updated[i] = { ...updated[i], unit_price: parseFloat(price) || 0 }
+    const specs = changes.specs ? { ...(updated[i].specs || {}), ...changes.specs } : undefined
+    updated[i] = { ...updated[i], ...changes, ...(specs ? { specs } : {}) }
     setDetections(updated)
   }
   const remove = (i) => setDetections(detections.filter((_, j) => j !== i))
 
-  const subtotal = detections.reduce((s, d) => s + (d.qty || 1) * (d.unit_price || 0), 0)
+  if (detections.length === 0) {
+    return <div className="py-16 text-center text-sm text-gray-400">No detections yet</div>
+  }
 
   return (
-    <div className="p-4 space-y-2">
-      {detections.length === 0 && (
-        <div className="py-12 text-center text-sm text-gray-400">No detections yet</div>
-      )}
+    <div className="p-3 space-y-2">
       {detections.map((det, i) => {
-        const color = getColour(det.class_name)
+        const color = getColour(det.corrected_class || det.class_name)
+        const isExpanded = expandedId === i
+        const specs = det.specs || {}
+
         return (
-          <div key={i} className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 dark:bg-white/5 group">
-            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{(det.class_name || '').replace(/_/g, ' ')}</p>
-              {det.confidence != null && (
-                <p className="text-xs text-gray-400">{Math.round(det.confidence * 100)}% confidence</p>
-              )}
+          <div key={i} className={`rounded-xl border transition-all ${isExpanded ? 'border-[#0A84FF] bg-blue-50/50 dark:bg-blue-950/20 shadow-md' : 'border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800/50 hover:border-gray-300'}`}>
+            <div className="flex items-center gap-2.5 p-3 cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : i)}>
+              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7] truncate">{(det.corrected_class || det.class_name || '').replace(/_/g, ' ')}</p>
+                {det.confidence != null && <p className="text-xs text-gray-400">{Math.round(det.confidence * 100)}% confidence</p>}
+              </div>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`text-gray-400 transition-transform flex-shrink-0 ${isExpanded ? 'rotate-90' : ''}`}><polyline points="9 18 15 12 9 6"/></svg>
             </div>
-            <div className="flex items-center gap-1">
-              <button onClick={() => updateQty(i, (det.qty || 1) - 1)} className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-sm flex items-center justify-center">−</button>
-              <span className="w-6 text-center text-sm tabular-nums">{det.qty || 1}</span>
-              <button onClick={() => updateQty(i, (det.qty || 1) + 1)} className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-sm flex items-center justify-center">+</button>
-            </div>
-            <div className="w-20">
-              <input
-                type="number"
-                value={det.unit_price || 0}
-                onChange={e => updatePrice(i, e.target.value)}
-                className="w-full text-right text-sm bg-transparent border-b border-gray-200 dark:border-white/10 focus:border-[#0A84FF] outline-none tabular-nums py-0.5"
-              />
-            </div>
-            <button onClick={() => remove(i)} className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500">
-              <Trash2 size={14} strokeWidth={1.5} />
-            </button>
+
+            {isExpanded && (
+              <div className="border-t border-gray-100 dark:border-white/5 p-3 space-y-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Door Type</label>
+                  <select
+                    value={det.corrected_class || det.class_name || ''}
+                    onChange={e => update(i, { corrected_class: e.target.value })}
+                    className="w-full text-sm border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 bg-white dark:bg-zinc-800 text-[#1c1c1e] dark:text-[#f5f5f7]"
+                  >
+                    {DOOR_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Location</label>
+                  <div className="flex gap-2">
+                    {['Interior', 'Exterior'].map(loc => (
+                      <button key={loc} onClick={() => update(i, { specs: { location: loc } })}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${(specs.location || 'Interior') === loc ? 'bg-[#0A84FF] text-white' : 'bg-gray-100 dark:bg-zinc-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'}`}>
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    ['Width (mm)', 'width_mm', ['600','700','760','810','860','910']],
+                    ['Height (mm)', 'height_mm', ['2040','2100']],
+                    ['Core', 'core', ['Hollow Core','Solid Core','Fire Rated (FD30)']],
+                    ['Finish', 'finish', ['Raw','Primed','Pre-finished White']],
+                    ['Frame', 'frame', ["LJ&P Standard",'Rebate Only','No Frame']],
+                    ['Handing', 'handing', ['Left Hand','Right Hand','N/A']],
+                  ].map(([label, field, options]) => (
+                    <div key={field}>
+                      <label className="text-xs text-gray-400 block mb-1">{label}</label>
+                      <select value={specs[field] || ''} onChange={e => update(i, { specs: { [field]: e.target.value } })}
+                        className="w-full text-xs border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 bg-white dark:bg-zinc-800">
+                        <option value="">— select —</option>
+                        {options.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <button onClick={() => { remove(i); setExpandedId(null) }}
+                  className="w-full py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors">
+                  Remove detection
+                </button>
+              </div>
+            )}
           </div>
         )
       })}
-      <div className="pt-3 border-t border-gray-200 dark:border-white/10 flex justify-between text-sm">
-        <span className="text-gray-500">{detections.length} components</span>
-        <span className="font-semibold tabular-nums">${subtotal.toFixed(2)}</span>
-      </div>
+      <div className="pt-2 border-t border-gray-200 dark:border-white/10 text-xs text-gray-500">{detections.length} components detected</div>
     </div>
   )
 }
-
 // ─── NotesTab ─────────────────────────────────────────────────────────────────
 function NotesTab({ notes, setNotes }) {
   return (
@@ -309,44 +350,44 @@ export default function AnalysisOverlay({ onClose }) {
         const rawBbox = det.bbox || det.box || det.xyxy
         if (!rawBbox) return
         let x1, y1, x2, y2
-        if (Array.isArray(rawBbox)) {
-          if (rawBbox.length < 4) return
+        if (Array.isArray(rawBbox) && rawBbox.length >= 4) {
           ;[x1, y1, x2, y2] = rawBbox
-        } else if (typeof rawBbox === 'object') {
+        } else if (typeof rawBbox === 'object' && rawBbox !== null) {
           x1 = rawBbox.x1; y1 = rawBbox.y1; x2 = rawBbox.x2; y2 = rawBbox.y2
-        } else {
-          return
-        }
-        if (x1 == null || y1 == null || x2 == null || y2 == null) return
+        } else return
+        if (x1 == null || x2 == null) return
+
+        // Normalised coords (0-1) → pixel coords
         if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
           x1 = x1 * (img.naturalWidth || displayW)
           y1 = y1 * (img.naturalHeight || displayH)
           x2 = x2 * (img.naturalWidth || displayW)
           y2 = y2 * (img.naturalHeight || displayH)
         }
-        const sx1 = x1 * scaleX, sy1 = y1 * scaleY
-        const sw = (x2 - x1) * scaleX, sh = (y2 - y1) * scaleY
-        if (sw <= 0 || sh <= 0 || sx1 < 0 || sy1 < 0) return
-        if (sx1 > displayW || sy1 > displayH) return
 
-        const color = getColour(det.class_name)
+        const sx1 = x1 * scaleX
+        const sy1 = y1 * scaleY
+        const sw = (x2 - x1) * scaleX
+        const sh = (y2 - y1) * scaleY
+        if (sw <= 2 || sh <= 2) return
+
+        const effectiveClass = det.corrected_class || det.class_name
+        const color = getColour(effectiveClass)
+        const label = (effectiveClass || 'Unknown').replace(/_/g, ' ')
+        const conf = det.confidence ? ` ${Math.round(det.confidence * 100)}%` : ''
+
         ctx.strokeStyle = color
         ctx.lineWidth = 2
         ctx.strokeRect(sx1, sy1, sw, sh)
 
-        const label = (det.class_name || '').replace(/_/g, ' ')
-        const conf = det.confidence ? ` ${Math.round(det.confidence * 100)}%` : ''
-        const labelText = label + conf
         ctx.font = 'bold 11px Inter, -apple-system, sans-serif'
-        const textW = ctx.measureText(labelText).width + 8
-        const labelH = 20
-
+        const textW = ctx.measureText(label + conf).width + 8
         ctx.fillStyle = color
         ctx.beginPath()
-        ctx.roundRect(sx1, Math.max(0, sy1 - labelH), textW, labelH, [4, 4, 0, 0])
+        ctx.roundRect(sx1, Math.max(0, sy1 - 20), textW, 20, [4, 4, 0, 0])
         ctx.fill()
-        ctx.fillStyle = '#ffffff'
-        ctx.fillText(labelText, sx1 + 4, Math.max(labelH, sy1) - 4)
+        ctx.fillStyle = '#fff'
+        ctx.fillText(label + conf, sx1 + 4, Math.max(16, sy1) - 4)
       })
     }
 
