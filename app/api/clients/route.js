@@ -1,29 +1,33 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { initDb, query } from '@/lib/db'
-import { requireAdmin } from '@/lib/auth'
+import { requireAuth } from '@/lib/auth'
 
 export async function GET(req) {
   try {
     await initDb()
-    const user = await requireAdmin(req)
-
-    const result = await query(
-      `SELECT u.id, u.name, u.email, u.location, u.role, u.created_at,
-              COUNT(DISTINCT o.id) as order_count,
-              MAX(o.created_at) as last_order_at
-       FROM users u
-       LEFT JOIN orders o ON o.builder_id = u.id
-       WHERE u.tenant_id = ? AND u.role = 'builder'
-       GROUP BY u.id
-       ORDER BY u.created_at DESC`,
-      [user.tenantId]
-    )
-
+    const user = await requireAuth(req)
+    const result = await query('SELECT * FROM clients WHERE tenant_id = ? ORDER BY name', [user.tenantId])
     return NextResponse.json({ clients: result.rows })
   } catch (err) {
-    if (err.message === 'Unauthorized' || err.message === 'Forbidden') {
-      return NextResponse.json({ error: err.message }, { status: 403 })
-    }
+    if (err.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+  }
+}
+
+export async function POST(req) {
+  try {
+    await initDb()
+    const user = await requireAuth(req)
+    const { name, company, email, phone } = await req.json()
+    const id = randomUUID()
+    await query(
+      'INSERT INTO clients (id, tenant_id, name, company, email, phone) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, user.tenantId, name, company || '', email || '', phone || '']
+    )
+    return NextResponse.json({ id })
+  } catch (err) {
+    if (err.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     return NextResponse.json({ error: 'Server error' }, { status: 500 })
   }
 }

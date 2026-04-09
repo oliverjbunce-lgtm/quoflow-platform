@@ -3,7 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, FileText, ScanLine, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, ScanLine, Trash2 } from 'lucide-react'
 import { DETECTION_COLOURS, DETECTION_LABELS, DEFAULT_UNIT_PRICES } from '@/lib/mockData'
 
 const STATES = {
@@ -12,8 +12,6 @@ const STATES = {
   SELECTING: 'selecting',
   SCANNING: 'scanning',
   REVIEWING: 'reviewing',
-  EXTRACTING: 'extracting',
-  SCHEDULE_REVIEW: 'schedule-review',
   DONE: 'done',
 }
 
@@ -60,15 +58,12 @@ function DetectionsTab({ detections, setDetections }) {
               {det.confidence != null && (
                 <p className="text-xs text-gray-400">{Math.round(det.confidence * 100)}% confidence</p>
               )}
-              {det.specs && <p className="text-xs text-gray-400 truncate">{det.specs}</p>}
             </div>
-            {/* Qty */}
             <div className="flex items-center gap-1">
               <button onClick={() => updateQty(i, (det.qty || 1) - 1)} className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-sm flex items-center justify-center">−</button>
               <span className="w-6 text-center text-sm tabular-nums">{det.qty || 1}</span>
               <button onClick={() => updateQty(i, (det.qty || 1) + 1)} className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-sm flex items-center justify-center">+</button>
             </div>
-            {/* Price */}
             <div className="w-20">
               <input
                 type="number"
@@ -86,43 +81,6 @@ function DetectionsTab({ detections, setDetections }) {
       <div className="pt-3 border-t border-gray-200 dark:border-white/10 flex justify-between text-sm">
         <span className="text-gray-500">{detections.length} components</span>
         <span className="font-semibold tabular-nums">${subtotal.toFixed(2)}</span>
-      </div>
-    </div>
-  )
-}
-
-// ─── QuoteTab ─────────────────────────────────────────────────────────────────
-function QuoteTab({ detections, tenantId }) {
-  const [clientName, setClientName] = useState('')
-  const subtotal = detections.reduce((s, d) => s + (d.qty || 1) * (d.unit_price || 0), 0)
-  const gst = subtotal * 0.15
-  const total = subtotal + gst
-
-  return (
-    <div className="p-4 space-y-4">
-      <div>
-        <label className="text-xs font-semibold tracking-wide uppercase text-gray-400 mb-1 block">Client Name</label>
-        <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Acme Construction Ltd"
-          className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-transparent text-sm focus:ring-2 focus:ring-[#0A84FF]/20 focus:border-[#0A84FF] outline-none" />
-      </div>
-      <div className="space-y-1.5">
-        {detections.map((det, i) => (
-          <div key={i} className="flex justify-between text-sm">
-            <span className="text-gray-600 dark:text-gray-400 truncate flex-1 mr-2">{(det.class_name || '').replace(/_/g, ' ')} ×{det.qty || 1}</span>
-            <span className="tabular-nums font-medium">${((det.qty || 1) * (det.unit_price || 0)).toFixed(2)}</span>
-          </div>
-        ))}
-      </div>
-      <div className="pt-3 border-t border-gray-200 dark:border-white/10 space-y-1.5">
-        <div className="flex justify-between text-sm text-gray-500">
-          <span>Subtotal</span><span className="tabular-nums">${subtotal.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-sm text-gray-500">
-          <span>GST (15%)</span><span className="tabular-nums">${gst.toFixed(2)}</span>
-        </div>
-        <div className="flex justify-between text-base font-bold text-[#0A84FF]">
-          <span>Total NZD</span><span className="tabular-nums">${total.toFixed(2)}</span>
-        </div>
       </div>
     </div>
   )
@@ -161,10 +119,9 @@ export default function AnalysisOverlay({ onClose }) {
   const [analysisId, setAnalysisId] = useState(null)
   const [notes, setNotes] = useState('')
   const [activeTab, setActiveTab] = useState('Detections')
-  const [savedQuoteId, setSavedQuoteId] = useState(null)
   const [scanTime, setScanTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
-  const [scheduleItems, setScheduleItems] = useState([])
+  const [savingPlan, setSavingPlan] = useState(false)
 
   const canvasRef = useRef(null)
   const imageRef = useRef(null)
@@ -270,7 +227,6 @@ export default function AnalysisOverlay({ onClose }) {
       clearInterval(scanInterval)
 
       const dets = data.detections || []
-      // Map detections to flat format with qty and unit_price
       const flatDets = dets.map(d => ({
         ...d,
         qty: 1,
@@ -295,99 +251,22 @@ export default function AnalysisOverlay({ onClose }) {
     }
   }
 
-  // ─── Schedule extraction ─────────────────────────────────────────────────
-  const startScheduleExtraction = async () => {
-    if (selectedPages.length === 0) return
-    setState(STATES.EXTRACTING)
-
-    try {
-      const pageData = pages.find(p => selectedPages.includes(p.pageNum))
-      setReviewingPage(pageData || null)
-      const response = await fetch('/api/plans/extract-schedule', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageData: pageData?.dataUrl })
-      })
-      const data = await response.json()
-      setScheduleItems(data.items || [])
-      setState(STATES.SCHEDULE_REVIEW)
-    } catch (err) {
-      console.error('Schedule extraction failed:', err)
-      setScheduleItems([])
-      setState(STATES.SELECTING)
-    }
+  // ─── Save to Plans ────────────────────────────────────────────────────────
+  async function handleSaveToPlan() {
+    setSavingPlan(true)
+    // Update plan status to in_review
+    await fetch(`/api/plans/${planId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ review_status: 'in_review' }),
+    })
+    setSavingPlan(false)
+    // Close overlay and navigate to plan review
+    onClose()
+    window.location.href = `/admin/plans/${planId}`
   }
 
-  const updateScheduleItem = (i, field, value) => {
-    setScheduleItems(prev => prev.map((item, j) => j === i ? { ...item, [field]: value } : item))
-  }
-
-  const removeScheduleItem = (i) => {
-    setScheduleItems(prev => prev.filter((_, j) => j !== i))
-  }
-
-  const addScheduleItem = () => {
-    setScheduleItems(prev => [...prev, {
-      mark: `D${prev.length + 1}`, type: 'Single Prehung',
-      width_mm: 760, height_mm: 2040, quantity: 1,
-      handing: 'Left Hand', core: 'Hollow Core',
-      finish: 'Primed', frame: 'LJ&P Standard', notes: ''
-    }])
-  }
-
-  const addScheduleToQuote = () => {
-    const newDetections = scheduleItems.map(item => ({
-      class_name: item.type.replace(/ /g, '_'),
-      confidence: null,
-      bbox: null,
-      qty: item.quantity || 1,
-      unit_price: 0,
-      specs: `${item.width_mm}mm × ${item.height_mm}mm · ${item.core} · ${item.finish} · ${item.frame}`,
-      mark: item.mark,
-      handing: item.handing,
-      fromSchedule: true,
-    }))
-    setDetections(newDetections)
-    setState(STATES.REVIEWING)
-  }
-
-  // ─── Save quote ───────────────────────────────────────────────────────────
-  async function handleSaveDraft() {
-    await saveQuote(false)
-  }
-
-  async function handleApproveQuote() {
-    await saveQuote(true)
-  }
-
-  async function saveQuote(sendEmail = false) {
-    const items = detections.map(det => ({
-      name: normalise(det.class_name),
-      qty: det.qty || 1,
-      unit_price: det.unit_price || 0,
-      total: (det.qty || 1) * (det.unit_price || 0),
-    }))
-
-    try {
-      const res = await fetch('/api/quotes', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysisId, items, notes }),
-      })
-      const data = await res.json()
-      setSavedQuoteId(data.quoteId)
-
-      if (sendEmail && data.quoteId) {
-        await fetch(`/api/quotes/${data.quoteId}/approve`, { method: 'POST' })
-      }
-
-      setState(STATES.DONE)
-    } catch (err) {
-      console.error('Save failed:', err)
-    }
-  }
-
-  // ─── Canvas drawing (Fix 1) ───────────────────────────────────────────────
+  // ─── Canvas drawing ───────────────────────────────────────────────────────
   useEffect(() => {
     if (state !== STATES.REVIEWING) return
     if (!canvasRef.current || !imageRef.current || !detections || detections.length === 0) return
@@ -398,7 +277,6 @@ export default function AnalysisOverlay({ onClose }) {
     const drawBoxes = () => {
       const displayW = img.clientWidth
       const displayH = img.clientHeight
-
       if (displayW === 0 || displayH === 0) return
 
       canvas.width = displayW
@@ -407,10 +285,6 @@ export default function AnalysisOverlay({ onClose }) {
       const ctx = canvas.getContext('2d')
       ctx.clearRect(0, 0, displayW, displayH)
 
-      const scaleX = displayW / (img.naturalWidth || displayW)
-      const scaleY = displayH / (img.naturalHeight || displayH)
-
-      // Polyfill ctx.roundRect for older browsers
       if (!ctx.roundRect) {
         ctx.roundRect = function(x, y, w, h, r) {
           const radius = Array.isArray(r) ? r[0] : (r || 0)
@@ -428,11 +302,12 @@ export default function AnalysisOverlay({ onClose }) {
         }
       }
 
+      const scaleX = displayW / (img.naturalWidth || displayW)
+      const scaleY = displayH / (img.naturalHeight || displayH)
+
       detections.forEach(det => {
         const rawBbox = det.bbox || det.box || det.xyxy
         if (!rawBbox) return
-
-        // Handle both array [x1,y1,x2,y2] and object {x1,y1,x2,y2} formats
         let x1, y1, x2, y2
         if (Array.isArray(rawBbox)) {
           if (rawBbox.length < 4) return
@@ -442,27 +317,19 @@ export default function AnalysisOverlay({ onClose }) {
         } else {
           return
         }
-
         if (x1 == null || y1 == null || x2 == null || y2 == null) return
-
-        // Handle normalised coords (0–1 range) — convert to pixels
         if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
           x1 = x1 * (img.naturalWidth || displayW)
           y1 = y1 * (img.naturalHeight || displayH)
           x2 = x2 * (img.naturalWidth || displayW)
           y2 = y2 * (img.naturalHeight || displayH)
         }
-
-        const sx1 = x1 * scaleX
-        const sy1 = y1 * scaleY
-        const sw = (x2 - x1) * scaleX
-        const sh = (y2 - y1) * scaleY
-
+        const sx1 = x1 * scaleX, sy1 = y1 * scaleY
+        const sw = (x2 - x1) * scaleX, sh = (y2 - y1) * scaleY
         if (sw <= 0 || sh <= 0 || sx1 < 0 || sy1 < 0) return
         if (sx1 > displayW || sy1 > displayH) return
 
         const color = getColour(det.class_name)
-
         ctx.strokeStyle = color
         ctx.lineWidth = 2
         ctx.strokeRect(sx1, sy1, sw, sh)
@@ -478,7 +345,6 @@ export default function AnalysisOverlay({ onClose }) {
         ctx.beginPath()
         ctx.roundRect(sx1, Math.max(0, sy1 - labelH), textW, labelH, [4, 4, 0, 0])
         ctx.fill()
-
         ctx.fillStyle = '#ffffff'
         ctx.fillText(labelText, sx1 + 4, Math.max(labelH, sy1) - 4)
       })
@@ -489,7 +355,6 @@ export default function AnalysisOverlay({ onClose }) {
     } else {
       img.onload = drawBoxes
     }
-
     const ro = new ResizeObserver(drawBoxes)
     ro.observe(img)
     return () => ro.disconnect()
@@ -547,10 +412,8 @@ export default function AnalysisOverlay({ onClose }) {
             {state === STATES.UPLOADING && 'Uploading…'}
             {state === STATES.SELECTING && 'Select Pages'}
             {state === STATES.SCANNING && 'Analysing…'}
-            {state === STATES.REVIEWING && 'Review & Quote'}
-            {state === STATES.EXTRACTING && 'Reading Schedule…'}
-            {state === STATES.SCHEDULE_REVIEW && 'Door Schedule'}
-            {state === STATES.DONE && 'Quote Saved'}
+            {state === STATES.REVIEWING && 'Review Detections'}
+            {state === STATES.DONE && 'Saved to Plans'}
           </h2>
         </div>
         <div className="w-24" />
@@ -712,25 +575,15 @@ export default function AnalysisOverlay({ onClose }) {
                 })}
               </div>
 
-              {/* Two action buttons */}
-              <div className="flex gap-3">
-                <button
-                  disabled={selectedPages.length === 0}
-                  onClick={startAnalysis}
-                  className="flex-1 py-3 bg-[#0A84FF] text-white rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  <ScanLine size={18} strokeWidth={1.5} />
-                  Detect Components {selectedPages.length > 0 ? `(${selectedPages.length} page${selectedPages.length > 1 ? 's' : ''})` : ''}
-                </button>
-                <button
-                  disabled={selectedPages.length === 0}
-                  onClick={startScheduleExtraction}
-                  className="flex-1 py-3 border border-gray-200 dark:border-white/10 rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm"
-                >
-                  <FileText size={18} strokeWidth={1.5} />
-                  Read Door Schedule
-                </button>
-              </div>
+              {/* Single action button */}
+              <button
+                disabled={selectedPages.length === 0}
+                onClick={startAnalysis}
+                className="w-full py-3 bg-[#0A84FF] text-white rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <ScanLine size={18} strokeWidth={1.5} />
+                Detect Components {selectedPages.length > 0 ? `(${selectedPages.length} page${selectedPages.length > 1 ? 's' : ''})` : ''}
+              </button>
             </div>
           </motion.div>
         )}
@@ -828,7 +681,7 @@ export default function AnalysisOverlay({ onClose }) {
         )}
         </AnimatePresence>
 
-        {/* ── REVIEWING (Fix 1 + Fix 2) ── */}
+        {/* ── REVIEWING ── */}
         <AnimatePresence>
         {state === STATES.REVIEWING && (
           <motion.div
@@ -838,17 +691,14 @@ export default function AnalysisOverlay({ onClose }) {
             exit={{ opacity: 0 }}
             className="absolute inset-0 flex h-full overflow-hidden"
           >
-            {/* LEFT: Annotated floor plan — 60% */}
+            {/* LEFT: Annotated floor plan */}
             <div className="flex-1 relative bg-gray-50 dark:bg-black/20 flex items-center justify-center p-6 overflow-hidden">
-              {/* Back button */}
               <button
                 onClick={() => setState(STATES.SELECTING)}
                 className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors z-10"
               >
                 <ArrowLeft size={16} strokeWidth={1.5} /> Re-analyse
               </button>
-
-              {/* Plan image + canvas overlay */}
               <div className="relative max-w-full max-h-full">
                 <img
                   ref={imageRef}
@@ -865,11 +715,11 @@ export default function AnalysisOverlay({ onClose }) {
               </div>
             </div>
 
-            {/* RIGHT: Tabs panel — 40% */}
+            {/* RIGHT: Tabs panel */}
             <div className="w-[420px] flex-shrink-0 border-l border-gray-200 dark:border-white/10 flex flex-col bg-white dark:bg-zinc-900">
               {/* Tabs */}
               <div className="flex border-b border-gray-200 dark:border-white/10">
-                {['Detections', 'Quote', 'Notes'].map(tab => (
+                {['Detections', 'Notes'].map(tab => (
                   <button
                     key={tab}
                     onClick={() => setActiveTab(tab)}
@@ -883,152 +733,23 @@ export default function AnalysisOverlay({ onClose }) {
               {/* Tab content */}
               <div className="flex-1 overflow-y-auto">
                 {activeTab === 'Detections' && <DetectionsTab detections={detections} setDetections={setDetections} />}
-                {activeTab === 'Quote' && <QuoteTab detections={detections} />}
                 {activeTab === 'Notes' && <NotesTab notes={notes} setNotes={setNotes} />}
               </div>
 
-              {/* Footer actions */}
-              <div className="p-4 border-t border-gray-200 dark:border-white/10 flex gap-2">
+              {/* Footer — Save to Plans */}
+              <div className="p-4 border-t border-gray-200 dark:border-white/10">
                 <button
-                  onClick={handleSaveDraft}
-                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                  onClick={handleSaveToPlan}
+                  disabled={savingPlan}
+                  className="w-full py-3 rounded-xl bg-[#0A84FF] text-white font-semibold text-sm hover:bg-[#0070d6] disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
                 >
-                  Save Draft
+                  {savingPlan ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>Save to Plans →</>
+                  )}
                 </button>
-                <button
-                  onClick={handleApproveQuote}
-                  className="flex-1 py-2.5 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0A84FF]/90 transition-colors"
-                >
-                  Approve &amp; Send
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* ── EXTRACTING ── */}
-        <AnimatePresence>
-        {state === STATES.EXTRACTING && (
-          <motion.div
-            key="extracting"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 flex flex-col items-center justify-center gap-6"
-          >
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center">
-              <FileText size={28} className="text-[#0A84FF]" strokeWidth={1.5} />
-            </div>
-            <div className="text-center">
-              <h3 className="text-xl font-bold tracking-tight mb-2">Reading door schedule...</h3>
-              <p className="text-gray-500 text-sm">AI is extracting door details from your schedule</p>
-            </div>
-            <div className="flex gap-1">
-              {[0,1,2].map(i => (
-                <motion.div
-                  key={i}
-                  className="w-2 h-2 rounded-full bg-[#0A84FF]"
-                  animate={{ opacity: [0.3, 1, 0.3] }}
-                  transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-        </AnimatePresence>
-
-        {/* ── SCHEDULE REVIEW ── */}
-        <AnimatePresence>
-        {state === STATES.SCHEDULE_REVIEW && (
-          <motion.div
-            key="schedule-review"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="absolute inset-0 flex h-full overflow-hidden"
-          >
-            {/* Left: original page for reference */}
-            <div className="flex-1 bg-gray-50 dark:bg-black/20 flex items-center justify-center p-6">
-              {reviewingPage?.dataUrl && (
-                <img src={reviewingPage.dataUrl} className="max-h-full max-w-full object-contain rounded-xl shadow-lg opacity-80" alt="Floor plan page" />
-              )}
-            </div>
-
-            {/* Right: extracted schedule table */}
-            <div className="w-[500px] flex-shrink-0 border-l border-gray-200 dark:border-white/10 flex flex-col bg-white dark:bg-zinc-900">
-              <div className="p-4 border-b border-gray-200 dark:border-white/10">
-                <h3 className="font-semibold">Door Schedule</h3>
-                <p className="text-sm text-gray-500 mt-0.5">{scheduleItems.length} doors extracted — review and edit before adding to quote</p>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                {scheduleItems.map((item, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-sm">{item.mark} — {item.type}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400">Qty:</span>
-                        <input
-                          type="number"
-                          value={item.quantity || 1}
-                          min={1}
-                          onChange={e => updateScheduleItem(i, 'quantity', parseInt(e.target.value))}
-                          className="w-12 text-center text-sm border border-gray-200 dark:border-white/10 rounded-lg py-0.5 bg-transparent"
-                        />
-                        <button onClick={() => removeScheduleItem(i)} className="text-gray-400 hover:text-red-500 transition-colors">
-                          <Trash2 size={14} strokeWidth={1.5} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      {[
-                        ['Width', 'width_mm', ['600','700','760','810','860','910']],
-                        ['Height', 'height_mm', ['2040','2100']],
-                        ['Core', 'core', ['Hollow Core','Solid Core','Fire Rated (FD30)']],
-                        ['Finish', 'finish', ['Raw','Primed','Pre-finished White']],
-                        ['Frame', 'frame', ['LJ&P Standard','Rebate Only','No Frame']],
-                        ['Handing', 'handing', ['Left Hand','Right Hand','N/A']],
-                      ].map(([label, field, options]) => (
-                        <div key={field}>
-                          <span className="text-gray-400 block mb-0.5">{label}</span>
-                          <select
-                            value={item[field] || ''}
-                            onChange={e => updateScheduleItem(i, field, e.target.value)}
-                            className="w-full text-xs border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 bg-white dark:bg-zinc-800"
-                          >
-                            {options.map(o => <option key={o} value={o}>{o}</option>)}
-                            {!options.includes(String(item[field])) && item[field] && (
-                              <option value={item[field]}>{item[field]}</option>
-                            )}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                    {item.notes && <p className="text-xs text-gray-400 italic">{item.notes}</p>}
-                  </div>
-                ))}
-                <button
-                  onClick={addScheduleItem}
-                  className="w-full py-2 rounded-xl border border-dashed border-gray-200 dark:border-white/10 text-sm text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-colors flex items-center justify-center gap-1.5"
-                >
-                  <Plus size={14} strokeWidth={1.5} /> Add row manually
-                </button>
-              </div>
-
-              <div className="p-4 border-t border-gray-200 dark:border-white/10 flex gap-2">
-                <button
-                  onClick={() => setState(STATES.SELECTING)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={addScheduleToQuote}
-                  className="flex-1 py-2.5 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0A84FF]/90 transition-colors"
-                >
-                  Add to Quote ({scheduleItems.length} doors)
-                </button>
+                <p className="text-xs text-center text-gray-400 mt-2">Fill specs and generate quote in Plans</p>
               </div>
             </div>
           </motion.div>
@@ -1061,35 +782,27 @@ export default function AnalysisOverlay({ onClose }) {
                 transition={{ delay: 0.3 }}
                 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2"
               >
-                Quote Saved
+                Saved to Plans
               </motion.h2>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="text-[#8e8e93] text-xl font-semibold mb-8"
-              >
-                {savedQuoteId}
-              </motion.p>
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.5 }}
-                className="flex gap-3 justify-center"
+                className="flex gap-3 justify-center mt-8"
               >
                 <motion.button
-                  onClick={() => router.push(`/admin/quotes/${savedQuoteId}`)}
+                  onClick={() => router.push('/admin/plans')}
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   className="px-6 py-3 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-semibold rounded-xl transition-all"
                 >
-                  View Quote
+                  View Plans
                 </motion.button>
                 <motion.button
                   onClick={() => {
                     setFile(null); setPages([]); setSelectedPages([])
-                    setDetections([]); setLiveDetections([]); setScheduleItems([])
-                    setSavedQuoteId(null); setState(STATES.IDLE)
+                    setDetections([]); setLiveDetections([])
+                    setState(STATES.IDLE)
                   }}
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}

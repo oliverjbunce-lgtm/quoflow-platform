@@ -3,13 +3,14 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard, ScanLine, FileText, Package, Users,
+  LayoutDashboard, ScanLine, FileText, Map, Package, Users,
   BarChart3, Plug, Settings, LogOut,
 } from 'lucide-react'
 
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/admin/dashboard', Icon: LayoutDashboard },
   { label: 'Analyse', href: '/admin/analyse', badge: 'New', Icon: ScanLine },
+  { label: 'Plans', href: '/admin/plans', Icon: Map },
   { label: 'Quotes', href: '/admin/quotes', Icon: FileText },
   { label: 'Orders', href: '/admin/orders', Icon: Package },
   { label: 'Clients', href: '/admin/clients', Icon: Users },

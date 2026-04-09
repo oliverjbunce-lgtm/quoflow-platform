@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto'
 import { initDb, query } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import path from 'path'
 
 export async function POST(req) {
   try {
@@ -18,25 +18,28 @@ export async function POST(req) {
     }
 
     const planId = randomUUID()
-    const filename = file.name || 'floor-plan.pdf'
+    const originalFilename = file.name || 'floor-plan.pdf'
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
     // Store file on disk (Railway volume or local)
-    const dataDir = process.env.DATA_DIR || join(process.cwd(), 'data', 'plans')
+    const dataDir = process.env.DATA_DIR || '/data'
+    const plansDir = path.join(dataDir, 'plans')
+    let filePath = null
     try {
-      await mkdir(dataDir, { recursive: true })
-      await writeFile(join(dataDir, `${planId}.pdf`), buffer)
+      await mkdir(plansDir, { recursive: true })
+      filePath = path.join(plansDir, `${planId}.pdf`)
+      await writeFile(filePath, buffer)
     } catch (err) {
-      console.warn('Could not write to disk, storing metadata only:', err.message)
+      console.warn('Could not write to disk:', err.message)
     }
 
     await query(
-      'INSERT INTO plans (id, tenant_id, uploaded_by, filename, page_count) VALUES (?, ?, ?, ?, ?)',
-      [planId, user.tenantId, user.userId, filename, 1]
+      'INSERT INTO plans (id, tenant_id, uploaded_by, filename, page_count, file_path, original_filename) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [planId, user.tenantId, user.userId, originalFilename, 1, filePath, originalFilename]
     )
 
-    return NextResponse.json({ planId, filename, pageCount: 1 })
+    return NextResponse.json({ planId, filename: originalFilename, pageCount: 1 })
   } catch (err) {
     console.error('Upload error:', err)
     if (err.message === 'Unauthorized') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
