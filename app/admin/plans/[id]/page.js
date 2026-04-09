@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Trash2, ChevronRight, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Trash2, ChevronRight, CheckCircle, Plus } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const DOOR_TYPES = [
@@ -35,6 +35,14 @@ export default function PlanReviewPage() {
   const [generateLoading, setGenerateLoading] = useState(false)
   const [showClientModal, setShowClientModal] = useState(false)
   const [clients, setClients] = useState([])
+
+  // Draw mode state
+  const [drawMode, setDrawMode] = useState(false)
+  const [drawRect, setDrawRect] = useState(null) // {x1,y1,x2,y2} in canvas pixels while dragging
+  const [drawStart, setDrawStart] = useState(null)
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [pendingBbox, setPendingBbox] = useState(null) // normalised [x1,y1,x2,y2]
+
   const canvasRef = useRef(null)
   const imageRef = useRef(null)
   const saveTimers = useRef({})
@@ -177,6 +185,24 @@ export default function PlanReviewPage() {
         ctx.fillStyle = '#fff'
         ctx.fillText(label, sx1 + 4, Math.max(16, sy1) - 4)
       })
+
+      // Draw in-progress rectangle
+      if (drawRect) {
+        const { x1, y1, x2, y2 } = drawRect
+        ctx.strokeStyle = '#0A84FF'
+        ctx.lineWidth = 2
+        ctx.setLineDash([6, 3])
+        ctx.strokeRect(
+          Math.min(x1, x2), Math.min(y1, y2),
+          Math.abs(x2 - x1), Math.abs(y2 - y1)
+        )
+        ctx.fillStyle = 'rgba(10, 132, 255, 0.08)'
+        ctx.fillRect(
+          Math.min(x1, x2), Math.min(y1, y2),
+          Math.abs(x2 - x1), Math.abs(y2 - y1)
+        )
+        ctx.setLineDash([])
+      }
     }
 
     if (img.complete && img.naturalWidth > 0) draw()
@@ -184,7 +210,104 @@ export default function PlanReviewPage() {
     const ro = new ResizeObserver(draw)
     ro.observe(img)
     return () => ro.disconnect()
-  }, [detections, currentPage, pages, selectedDetId])
+  }, [detections, currentPage, pages, selectedDetId, drawRect])
+
+  // Mouse handlers
+  const handleCanvasMouseDown = useCallback((e) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    if (drawMode) {
+      setDrawStart({ x, y })
+      setDrawRect({ x1: x, y1: y, x2: x, y2: y })
+    } else {
+      // Click-to-select: find detection whose bbox contains this point
+      const normX = x / canvas.width
+      const normY = y / canvas.height
+      const pageDetections = detections.filter(d => (d.page_num || 1) === currentPage)
+
+      let found = null
+      let minArea = Infinity
+      for (const det of pageDetections) {
+        const bbox = det.bbox
+        if (!bbox) continue
+        let [bx1, by1, bx2, by2] = Array.isArray(bbox) ? bbox : [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
+        // Already normalised (0-1 range)
+        if (normX >= bx1 && normX <= bx2 && normY >= by1 && normY <= by2) {
+          const area = (bx2 - bx1) * (by2 - by1)
+          if (area < minArea) { minArea = area; found = det }
+        }
+      }
+      if (found) setSelectedDetId(found.id)
+    }
+  }, [drawMode, detections, currentPage])
+
+  const handleCanvasMouseMove = useCallback((e) => {
+    if (!drawMode || !drawStart) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    setDrawRect({ x1: drawStart.x, y1: drawStart.y, x2: x, y2: y })
+  }, [drawMode, drawStart])
+
+  const handleCanvasMouseUp = useCallback((e) => {
+    if (!drawMode || !drawStart) return
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    const pixX1 = Math.min(drawStart.x, x)
+    const pixY1 = Math.min(drawStart.y, y)
+    const pixX2 = Math.max(drawStart.x, x)
+    const pixY2 = Math.max(drawStart.y, y)
+
+    // Too small = accidental click, ignore
+    if ((pixX2 - pixX1) < 8 || (pixY2 - pixY1) < 8) {
+      setDrawStart(null)
+      setDrawRect(null)
+      return
+    }
+
+    // Normalise to 0-1
+    const normBbox = [
+      pixX1 / canvas.width,
+      pixY1 / canvas.height,
+      pixX2 / canvas.width,
+      pixY2 / canvas.height,
+    ]
+
+    setDrawStart(null)
+    setDrawRect(null)
+    setPendingBbox(normBbox)
+    setShowAddModal(true)
+  }, [drawMode, drawStart])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKey = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDetId) {
+        // Don't fire when typing in inputs
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
+        deleteDetection(selectedDetId)
+        setSelectedDetId(null)
+      }
+      if (e.key === 'Escape') {
+        setDrawMode(false)
+        setDrawRect(null)
+        setDrawStart(null)
+        setSelectedDetId(null)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [selectedDetId, deleteDetection])
 
   const updateDetection = useCallback((detId, changes) => {
     setDetections(prev => prev.map(d => d.id === detId ? { ...d, ...changes } : d))
@@ -273,8 +396,15 @@ export default function PlanReviewPage() {
               />
               <canvas
                 ref={canvasRef}
-                className="absolute top-0 left-0 pointer-events-none rounded-xl"
-                style={{ width: '100%', height: '100%' }}
+                className="absolute top-0 left-0 rounded-xl"
+                style={{
+                  cursor: drawMode ? 'crosshair' : 'pointer',
+                  width: '100%',
+                  height: '100%',
+                }}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
               />
             </div>
           ) : (
@@ -310,7 +440,16 @@ export default function PlanReviewPage() {
         <div className="px-4 py-4 border-b border-gray-100 dark:border-white/5">
           <div className="flex items-center justify-between mb-1">
             <h2 className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">Detections</h2>
-            <span className="text-sm text-gray-400 tabular-nums">{totalDetections} total</span>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-400 tabular-nums">{totalDetections} total</span>
+              <button
+                onClick={() => setDrawMode(d => !d)}
+                title={drawMode ? 'Cancel draw' : 'Draw detection box'}
+                className={`p-1.5 rounded-lg transition-colors ${drawMode ? 'bg-[#0A84FF] text-white' : 'text-gray-400 hover:text-[#0A84FF] hover:bg-blue-50 dark:hover:bg-blue-950/30'}`}
+              >
+                <Plus size={16} strokeWidth={1.5} />
+              </button>
+            </div>
           </div>
           {pages.length > 1 && (
             <p className="text-xs text-gray-400">
@@ -328,6 +467,13 @@ export default function PlanReviewPage() {
           {pages.length > 1 && detections.length > 0 && (
             <div className="px-4 pt-3 pb-1">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Page {currentPage}</p>
+            </div>
+          )}
+
+          {/* Draw mode banner */}
+          {drawMode && (
+            <div className="mx-3 mb-2 mt-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-[#0A84FF]/30 text-xs text-[#0A84FF] font-medium">
+              Draw mode — drag a box on the floor plan
             </div>
           )}
 
@@ -390,6 +536,25 @@ export default function PlanReviewPage() {
             setShowClientModal(false)
           }}
           onClose={() => setShowClientModal(false)}
+        />
+      )}
+
+      {/* Add Detection Modal */}
+      {showAddModal && (
+        <AddDetectionModal
+          bbox={pendingBbox}
+          pageNum={currentPage}
+          planId={planId}
+          onSave={(newDet) => {
+            setDetections(prev => [...prev, newDet])
+            setShowAddModal(false)
+            setPendingBbox(null)
+            setDrawMode(false)
+          }}
+          onClose={() => {
+            setShowAddModal(false)
+            setPendingBbox(null)
+          }}
         />
       )}
     </div>
@@ -520,6 +685,70 @@ function DetectionCard({ det, isSelected, onClick, onUpdate, onDelete }) {
   )
 }
 
+// ─── Add Detection Modal ───────────────────────────────────────────────────────
+function AddDetectionModal({ bbox, pageNum, planId, onSave, onClose }) {
+  const [selected, setSelected] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    if (!selected) return
+    setSaving(true)
+    const res = await fetch(`/api/plans/${planId}/detections`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ class_name: selected, bbox, page_num: pageNum }),
+    })
+    const data = await res.json()
+    onSave({
+      id: data.id,
+      class_name: selected,
+      confidence: 1.0,
+      bbox,
+      page_num: pageNum,
+      specs: {},
+    })
+    setSaving(false)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-80 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 dark:border-white/5">
+          <h3 className="font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">Select Door Type</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Choose the type for this detection</p>
+        </div>
+        <div className="p-3 max-h-72 overflow-y-auto space-y-1">
+          {DOOR_TYPES.map(t => (
+            <button
+              key={t}
+              onClick={() => setSelected(t)}
+              className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${
+                selected === t
+                  ? 'bg-[#0A84FF] text-white font-medium'
+                  : 'text-[#1c1c1e] dark:text-[#f5f5f7] hover:bg-gray-100 dark:hover:bg-white/5'
+              }`}
+            >
+              {t.replace(/_/g, ' ')}
+            </button>
+          ))}
+        </div>
+        <div className="p-4 border-t border-gray-100 dark:border-white/5 flex gap-2">
+          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={!selected || saving}
+            className="flex-1 py-2 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0070d6] disabled:opacity-40 transition-colors"
+          >
+            {saving ? 'Saving…' : 'Add Detection'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Client Modal ─────────────────────────────────────────────────────────────
 function ClientModal({ clients, onSelect, onClose }) {
   const [search, setSearch] = useState('')
@@ -594,5 +823,3 @@ function ClientModal({ clients, onSelect, onClose }) {
     </div>
   )
 }
-
-
