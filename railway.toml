@@ -1,11 +1,9 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "npm install && npm run build"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm start"
+healthcheckPath = "/auth/login"
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 10
-
-[[services]]
-name = "quoflow"
+restartPolicyMaxRetries = 3
