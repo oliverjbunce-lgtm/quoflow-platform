@@ -307,7 +307,7 @@ export default function AnalysisOverlay({ onClose }) {
     }
     setSavingPlan(false)
     onClose()
-    router.push(`/plan/${planId}`)
+    window.location.href = `/plan/${planId}`
   }
 
   // ─── Canvas drawing ───────────────────────────────────────────────────────
