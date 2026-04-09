@@ -307,7 +307,7 @@ export default function AnalysisOverlay({ onClose }) {
     }
     setSavingPlan(false)
     onClose()
-    router.push(`/admin/plans/${planId}`)
+    router.push(`/plan/${planId}`)
   }
 
   // ─── Canvas drawing ───────────────────────────────────────────────────────

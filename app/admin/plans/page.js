@@ -62,7 +62,7 @@ export default function PlansPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
-              onClick={() => router.push(`/admin/plans/${plan.id}`)}
+              onClick={() => router.push(`/plan/${plan.id}`)}
               className="flex items-center gap-4 p-4 bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/10 cursor-pointer hover:border-[#0A84FF]/30 hover:shadow-md transition-all group"
             >
               {/* File icon */}
