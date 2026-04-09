@@ -2,12 +2,12 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
+import { ScanLine, FileText, Clock, Search, DollarSign, ChevronRight } from 'lucide-react'
 import StatsCard from '@/components/StatsCard'
 import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
 import AnalysisOverlay from '@/components/AnalysisOverlay'
 import { SkeletonStat, SkeletonRow } from '@/components/SkeletonCard'
-import { MOCK_ACTIVITY } from '@/lib/mockData'
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } }
@@ -66,16 +66,16 @@ export default function DashboardPage() {
           ) : (
             <>
               <motion.div variants={item}>
-                <StatsCard icon="📐" label="Plans This Month" value={stats?.analysesCount || 0} trend={12} color="#0A84FF" />
+                <StatsCard icon={ScanLine} label="Plans This Month" value={stats?.analysesCount || 0} trend={12} color="#0A84FF" />
               </motion.div>
               <motion.div variants={item}>
-                <StatsCard icon="⏳" label="Quotes Pending" value={stats?.pendingQuotes || 0} trend={-3} color="#ff9f0a" />
+                <StatsCard icon={Clock} label="Quotes Pending" value={stats?.pendingQuotes || 0} trend={-3} color="#ff9f0a" />
               </motion.div>
               <motion.div variants={item}>
-                <StatsCard icon="🔍" label="Components Detected" value={stats?.detectionsCount || 0} trend={18} color="#9333ea" />
+                <StatsCard icon={Search} label="Components Detected" value={stats?.detectionsCount || 0} trend={18} color="#9333ea" />
               </motion.div>
               <motion.div variants={item}>
-                <StatsCard icon="💰" label="Avg Quote Value" value={stats?.avgQuoteValue || 0} prefix="$" trend={7} color="#34c759" />
+                <StatsCard icon={DollarSign} label="Avg Quote Value" value={stats?.avgQuoteValue || 0} prefix="$" trend={7} color="#34c759" />
               </motion.div>
             </>
           )}
@@ -86,7 +86,7 @@ export default function DashboardPage() {
           {/* Recent quotes */}
           <motion.div variants={item} className="lg:col-span-2 bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-sm rounded-2xl">
             <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-white/10">
-              <h2 className="font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Recent Quotes</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-[#1c1c1e] dark:text-[#f5f5f7]">Recent Quotes</h2>
               <button onClick={() => router.push('/admin/quotes')} className="text-xs text-[#0A84FF] font-semibold hover:underline">
                 View all
               </button>
@@ -98,10 +98,11 @@ export default function DashboardPage() {
               </div>
             ) : quotes.length === 0 ? (
               <EmptyState
-                icon="📋"
+                icon={FileText}
                 title="No quotes yet"
                 description="Start by analysing a floor plan to generate your first quote"
-                action={{ label: 'New Analysis', onClick: () => setShowOverlay(true) }}
+                action={() => setShowOverlay(true)}
+                actionLabel="New Analysis"
               />
             ) : (
               <div className="overflow-x-auto">
@@ -125,15 +126,13 @@ export default function DashboardPage() {
                       >
                         <td className="px-4 py-3.5 pl-6 font-mono text-sm font-semibold text-[#0A84FF]">{q.id}</td>
                         <td className="px-4 py-3.5 text-sm text-[#1c1c1e] dark:text-[#f5f5f7] font-medium">{q.client_name || '—'}</td>
-                        <td className="px-4 py-3.5 text-sm font-black text-[#1c1c1e] dark:text-[#f5f5f7]">
+                        <td className="px-4 py-3.5 text-sm font-bold tabular-nums tracking-tight text-[#1c1c1e] dark:text-[#f5f5f7]">
                           ${Number(q.total || 0).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-3.5"><StatusBadge status={q.status} /></td>
                         <td className="px-4 py-3.5 text-xs text-[#8e8e93]">{timeAgo(q.created_at)}</td>
                         <td className="px-4 py-3.5 pr-6">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8e8e93" strokeWidth="2">
-                            <polyline points="9 18 15 12 9 6"/>
-                          </svg>
+                          <ChevronRight size={14} className="text-[#8e8e93]" strokeWidth={1.5} />
                         </td>
                       </motion.tr>
                     ))}
@@ -143,27 +142,33 @@ export default function DashboardPage() {
             )}
           </motion.div>
 
-          {/* Activity feed */}
+          {/* Quick actions */}
           <motion.div variants={item} className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 shadow-sm rounded-2xl">
             <div className="px-6 py-5 border-b border-gray-100 dark:border-white/10">
-              <h2 className="font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Activity</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-[#1c1c1e] dark:text-[#f5f5f7]">Quick Actions</h2>
             </div>
-            <div className="p-5 space-y-4">
-              {MOCK_ACTIVITY.map((activity, i) => (
-                <motion.div
-                  key={activity.id}
-                  initial={{ opacity: 0, x: 8 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="flex gap-3"
-                >
-                  <ActivityDot type={activity.type} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#1c1c1e] dark:text-[#f5f5f7] leading-snug">{activity.text}</p>
-                    <p className="text-xs text-[#8e8e93] mt-0.5">{activity.time}</p>
-                  </div>
-                </motion.div>
-              ))}
+            <div className="p-5 space-y-3">
+              <button
+                onClick={() => setShowOverlay(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-[#0A84FF]/10 hover:bg-[#0A84FF]/15 text-[#0A84FF] font-medium text-sm transition-colors"
+              >
+                <ScanLine size={18} strokeWidth={1.5} />
+                Analyse Floor Plan
+              </button>
+              <button
+                onClick={() => router.push('/admin/quotes')}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-[#1c1c1e] dark:text-[#f5f5f7] font-medium text-sm transition-colors"
+              >
+                <FileText size={18} strokeWidth={1.5} />
+                View Quotes
+              </button>
+              <button
+                onClick={() => router.push('/admin/clients')}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 text-[#1c1c1e] dark:text-[#f5f5f7] font-medium text-sm transition-colors"
+              >
+                <Search size={18} strokeWidth={1.5} />
+                Invite Builder
+              </button>
             </div>
           </motion.div>
         </div>
@@ -174,9 +179,10 @@ export default function DashboardPage() {
             onClick={() => setShowOverlay(true)}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full py-5 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-black tracking-[-0.01em] text-lg rounded-2xl transition-all shadow-lg shadow-[#0A84FF]/20"
+            className="w-full py-5 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-bold tracking-tight text-lg rounded-2xl transition-all shadow-lg shadow-[#0A84FF]/20 flex items-center justify-center gap-3"
           >
-            + New Analysis
+            <ScanLine size={24} strokeWidth={1.5} />
+            New Analysis
           </motion.button>
         </motion.div>
       </motion.div>

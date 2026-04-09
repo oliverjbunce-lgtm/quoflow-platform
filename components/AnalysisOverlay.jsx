@@ -332,7 +332,7 @@ export default function AnalysisOverlay({ onClose }) {
         </motion.button>
 
         <div className="flex-1 text-center">
-          <h2 className="text-base font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">
+          <h2 className="text-base font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">
             {state === STATES.IDLE && 'New Analysis'}
             {state === STATES.UPLOADING && 'Uploading…'}
             {state === STATES.SELECTING && 'Select Pages'}
@@ -381,12 +381,12 @@ export default function AnalysisOverlay({ onClose }) {
               <AnimatePresence mode="wait">
                 {isDragActive ? (
                   <motion.div key="drop" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-                    <h2 className="text-4xl font-black tracking-[-0.02em] text-[#0A84FF] mb-2">Drop to analyse</h2>
+                    <h2 className="text-4xl font-bold tracking-[-0.02em] text-[#0A84FF] mb-2">Drop to analyse</h2>
                     <p className="text-[#8e8e93]">Release to start</p>
                   </motion.div>
                 ) : (
                   <motion.div key="idle-text" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <h2 className="text-4xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2">
+                    <h2 className="text-4xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2">
                       Drop your floor plan here
                     </h2>
                     <p className="text-[#8e8e93] text-lg">or click to browse</p>
@@ -415,7 +415,7 @@ export default function AnalysisOverlay({ onClose }) {
                   <polyline points="20 6 9 17 4 12"/>
                 </svg>
               </div>
-              <h3 className="text-xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">{file?.name}</h3>
+              <h3 className="text-xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">{file?.name}</h3>
               <p className="text-[#8e8e93] text-sm mb-6">Uploading & processing…</p>
               <div className="h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full overflow-hidden">
                 <motion.div
@@ -506,7 +506,7 @@ export default function AnalysisOverlay({ onClose }) {
                 disabled={!selectedPages.length}
                 whileHover={selectedPages.length ? { scale: 1.01 } : {}}
                 whileTap={selectedPages.length ? { scale: 0.98 } : {}}
-                className="w-full py-4 bg-[#0A84FF] hover:bg-[#0070d6] disabled:opacity-40 disabled:cursor-not-allowed text-white font-black tracking-[-0.01em] text-lg rounded-xl transition-all"
+                className="w-full py-4 bg-[#0A84FF] hover:bg-[#0070d6] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold tracking-[-0.01em] text-lg rounded-xl transition-all"
               >
                 {selectedPages.length
                   ? `Analyse ${selectedPages.length} page${selectedPages.length > 1 ? 's' : ''}`
@@ -569,7 +569,7 @@ export default function AnalysisOverlay({ onClose }) {
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold tracking-[0.12em] uppercase text-[#8e8e93]">Live Detections</p>
                   <motion.span
-                    className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] tabular-nums"
+                    className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] tabular-nums"
                     key={liveDetections.length}
                   >
                     {liveDetections.length}
@@ -596,7 +596,7 @@ export default function AnalysisOverlay({ onClose }) {
                     >
                       <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: getColour(class_name) }} />
                       <span className="flex-1 text-sm font-medium text-[#1c1c1e] dark:text-[#f5f5f7] truncate">{label}</span>
-                      <span className="text-lg font-black tabular-nums text-[#1c1c1e] dark:text-[#f5f5f7]">{count}</span>
+                      <span className="text-lg font-bold tabular-nums text-[#1c1c1e] dark:text-[#f5f5f7]">{count}</span>
                     </motion.div>
                   ))}
                 </AnimatePresence>
@@ -614,7 +614,7 @@ export default function AnalysisOverlay({ onClose }) {
                         <polyline points="20 6 9 17 4 12"/>
                       </svg>
                     </div>
-                    <p className="font-black text-sm">Analysis complete</p>
+                    <p className="font-bold text-sm">Analysis complete</p>
                   </div>
                   <p className="text-xs text-[#8e8e93] mt-1">{liveDetections.length} components · {scanTime}s</p>
                 </motion.div>
@@ -677,14 +677,14 @@ export default function AnalysisOverlay({ onClose }) {
                             onClick={() => setQuoteItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(0, it.qty - 1) } : it).filter(it => it.qty > 0))}
                             className="w-6 h-6 rounded-lg bg-gray-200 dark:bg-zinc-700 flex items-center justify-center text-sm font-bold hover:bg-gray-300 dark:hover:bg-zinc-600"
                           >−</button>
-                          <span className="w-6 text-center text-sm font-black tabular-nums">{item.qty}</span>
+                          <span className="w-6 text-center text-sm font-bold tabular-nums">{item.qty}</span>
                           <button
                             onClick={() => setQuoteItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it))}
                             className="w-6 h-6 rounded-lg bg-gray-200 dark:bg-zinc-700 flex items-center justify-center text-sm font-bold hover:bg-gray-300 dark:hover:bg-zinc-600"
                           >+</button>
                         </div>
                         <div className="text-right min-w-[60px]">
-                          <p className="text-sm font-black text-[#1c1c1e] dark:text-[#f5f5f7]">${(item.qty * item.unit_price).toFixed(0)}</p>
+                          <p className="text-sm font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">${(item.qty * item.unit_price).toFixed(0)}</p>
                           <p className="text-xs text-[#8e8e93]">${item.unit_price}/ea</p>
                         </div>
                       </div>
@@ -692,7 +692,7 @@ export default function AnalysisOverlay({ onClose }) {
                     <div className="pt-3 border-t border-gray-100 dark:border-white/10">
                       <div className="flex justify-between text-sm text-[#8e8e93]">
                         <span>{quoteItems.length} types, {quoteItems.reduce((s,i)=>s+i.qty,0)} items</span>
-                        <span className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">${subtotal.toFixed(2)}</span>
+                        <span className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">${subtotal.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>
@@ -728,7 +728,7 @@ export default function AnalysisOverlay({ onClose }) {
                         <span className="text-[#8e8e93]">GST (15%)</span>
                         <span className="font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">${gst.toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between text-base font-black">
+                      <div className="flex justify-between text-base font-bold">
                         <span className="text-[#1c1c1e] dark:text-[#f5f5f7]">Total NZD</span>
                         <span className="text-[#0A84FF]">${total.toFixed(2)}</span>
                       </div>
@@ -756,7 +756,7 @@ export default function AnalysisOverlay({ onClose }) {
                   onClick={() => saveQuote(true)}
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
-                  className="w-full py-3.5 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-black rounded-xl transition-all"
+                  className="w-full py-3.5 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-bold rounded-xl transition-all"
                 >
                   Approve & Send Quote
                 </motion.button>
@@ -798,7 +798,7 @@ export default function AnalysisOverlay({ onClose }) {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2"
+                className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2"
               >
                 Quote Saved
               </motion.h2>

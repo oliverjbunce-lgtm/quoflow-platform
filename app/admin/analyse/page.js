@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import AnalysisOverlay from '@/components/AnalysisOverlay'
+import { Upload, ScanLine, Briefcase } from 'lucide-react'
 
 export default function AnalysePage() {
   const [showOverlay, setShowOverlay] = useState(false)
@@ -33,7 +34,7 @@ export default function AnalysePage() {
             </svg>
           </motion.div>
 
-          <h1 className="text-4xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-3">
+          <h1 className="text-4xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-3">
             AI Floor Plan Analysis
           </h1>
           <p className="text-[#8e8e93] text-lg max-w-md mx-auto mb-8">
@@ -44,7 +45,7 @@ export default function AnalysePage() {
             onClick={() => setShowOverlay(true)}
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            className="px-10 py-4 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-black text-lg rounded-2xl transition-all shadow-lg shadow-[#0A84FF]/30"
+            className="px-10 py-4 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-bold text-lg rounded-2xl transition-all shadow-lg shadow-[#0A84FF]/30"
           >
             Start New Analysis
           </motion.button>
@@ -53,9 +54,9 @@ export default function AnalysePage() {
         {/* How it works */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { step: '01', icon: '📤', title: 'Upload PDF', desc: 'Drop your floor plan PDF. We support multi-page documents.' },
-            { step: '02', icon: '🤖', title: 'AI Detects', desc: 'Our AI scans the plan and identifies all door types and components.' },
-            { step: '03', icon: '💼', title: 'Instant Quote', desc: 'Review detections, adjust quantities, and send the quote.' },
+            { step: '01', Icon: Upload, title: 'Upload PDF', desc: 'Drop your floor plan PDF. We support multi-page documents.' },
+            { step: '02', Icon: ScanLine, title: 'AI Detects', desc: 'Our AI scans the plan and identifies all door types and components.' },
+            { step: '03', Icon: Briefcase, title: 'Instant Quote', desc: 'Review detections, adjust quantities, and send the quote.' },
           ].map(card => (
             <motion.div
               key={card.step}
@@ -63,8 +64,8 @@ export default function AnalysePage() {
               className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl p-6"
             >
               <div className="text-xs font-semibold tracking-[0.12em] uppercase text-[#0A84FF] mb-3">{card.step}</div>
-              <div className="text-2xl mb-2">{card.icon}</div>
-              <h3 className="font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">{card.title}</h3>
+              <div className="mb-2 text-[#0A84FF]"><card.Icon size={24} strokeWidth={1.5} /></div>
+              <h3 className="font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">{card.title}</h3>
               <p className="text-sm text-[#8e8e93]">{card.desc}</p>
             </motion.div>
           ))}
@@ -72,7 +73,7 @@ export default function AnalysePage() {
 
         {/* Detectable components */}
         <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl p-6">
-          <h2 className="font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-4">Detectable Components</h2>
+          <h2 className="font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-4">Detectable Components</h2>
           <div className="flex flex-wrap gap-2">
             {[
               ['#0A84FF', 'L/R Prehung Door'],

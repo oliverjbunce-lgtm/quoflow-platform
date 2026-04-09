@@ -53,9 +53,9 @@ export default function LoginPage() {
               <rect width="32" height="32" rx="8" fill="#0A84FF"/>
               <path d="M8 8h10v2H10v12H8V8zM12 12h12v2H14v8h-2V12z" fill="white"/>
             </svg>
-            <span className="text-2xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Quoflow</span>
+            <span className="text-2xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Quoflow</span>
           </div>
-          <h1 className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Welcome back</h1>
+          <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Welcome back</h1>
           <p className="text-[#8e8e93] mt-1">Sign in to your account</p>
         </div>
 

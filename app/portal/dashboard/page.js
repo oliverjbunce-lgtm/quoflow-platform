@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
+import { FileText, Package } from 'lucide-react'
 
 function getGreeting() {
   const h = new Date().getHours()
@@ -37,7 +38,7 @@ export default function PortalDashboard() {
 
       {/* Welcome */}
       <div>
-        <h1 className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">
+        <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">
           {getGreeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
         </h1>
         <p className="text-[#8e8e93] mt-1">Here's what's happening with your projects</p>
@@ -57,7 +58,7 @@ export default function PortalDashboard() {
               <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
             </svg>
           </div>
-          <h3 className="text-xl font-black tracking-[-0.02em] mb-1">Submit a Floor Plan</h3>
+          <h3 className="text-xl font-bold tracking-[-0.02em] mb-1">Submit a Floor Plan</h3>
           <p className="text-white/70 text-sm">Upload your plan and get an instant quote</p>
         </motion.div>
 
@@ -74,7 +75,7 @@ export default function PortalDashboard() {
               <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
             </svg>
           </div>
-          <h3 className="text-xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">View My Quotes</h3>
+          <h3 className="text-xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">View My Quotes</h3>
           <p className="text-[#8e8e93] text-sm">{quotes.length} quote{quotes.length !== 1 ? 's' : ''} on file</p>
         </motion.div>
       </div>
@@ -82,7 +83,7 @@ export default function PortalDashboard() {
       {/* Recent activity */}
       {(quotes.length > 0 || orders.length > 0) && (
         <div className="space-y-4">
-          <h2 className="font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Recent Activity</h2>
+          <h2 className="font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Recent Activity</h2>
 
           <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl divide-y divide-gray-100 dark:divide-white/5">
             {[...quotes.map(q => ({ ...q, type: 'quote' })), ...orders.map(o => ({ ...o, type: 'order' }))].slice(0, 4).map((item, i) => (
@@ -97,7 +98,7 @@ export default function PortalDashboard() {
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
                     item.type === 'quote' ? 'bg-amber-50 dark:bg-amber-900/30' : 'bg-purple-50 dark:bg-purple-900/30'
                   }`}>
-                    {item.type === 'quote' ? '📋' : '📦'}
+                    {item.type === 'quote' ? <FileText size={16} strokeWidth={1.5} className="text-amber-500" /> : <Package size={16} strokeWidth={1.5} className="text-purple-500" />}
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">

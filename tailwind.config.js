@@ -17,7 +17,7 @@ module.exports = {
         'text-secondary': '#8e8e93',
       },
       fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+        sans: ['var(--font-inter)', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },
       backdropBlur: {
         xl: '24px',

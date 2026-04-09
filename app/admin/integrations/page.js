@@ -66,12 +66,12 @@ function IntegrationModal({ integration, onClose }) {
               onError={e => { e.target.style.display = 'none' }}
             />
           ) : (
-            <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-700 flex items-center justify-center text-lg font-black text-[#8e8e93]">
+            <div className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-zinc-700 flex items-center justify-center text-lg font-bold text-[#8e8e93]">
               {integration.name.charAt(0)}
             </div>
           )}
           <div>
-            <h3 className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">Connect {integration.name}</h3>
+            <h3 className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">Connect {integration.name}</h3>
             <p className="text-xs text-[#8e8e93]">{integration.category}</p>
           </div>
           <button onClick={onClose} className="ml-auto text-[#8e8e93] hover:text-[#1c1c1e] dark:hover:text-[#f5f5f7]">
@@ -88,7 +88,7 @@ function IntegrationModal({ integration, onClose }) {
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </div>
-            <p className="font-black text-[#34c759] text-lg">Connected!</p>
+            <p className="font-bold text-[#34c759] text-lg">Connected!</p>
             <p className="text-sm text-[#8e8e93] mt-1">{integration.name} is now connected to Quoflow.</p>
           </div>
         ) : (
@@ -141,7 +141,7 @@ export default function IntegrationsPage() {
 
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
         <div>
-          <h2 className="text-2xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">Integrations</h2>
+          <h2 className="text-2xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">Integrations</h2>
           <p className="text-[#8e8e93]">Connect Quoflow with your existing tools</p>
         </div>
 
@@ -166,12 +166,12 @@ export default function IntegrationsPage() {
                       onError={e => { e.target.style.display = 'none' }}
                     />
                   ) : (
-                    <span className="text-xl font-black text-[#8e8e93]">{int.name.charAt(0)}</span>
+                    <span className="text-xl font-bold text-[#8e8e93]">{int.name.charAt(0)}</span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">{int.name}</h3>
+                    <h3 className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">{int.name}</h3>
                     {connectedIds.includes(int.id) && (
                       <span className="text-xs bg-[#34c759]/20 text-[#34c759] font-semibold px-1.5 py-0.5 rounded-md">Connected</span>
                     )}

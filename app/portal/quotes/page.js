@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
+import { FileText } from 'lucide-react'
 
 function timeAgo(ts) {
   if (!ts) return ''
@@ -44,11 +45,11 @@ export default function PortalQuotesPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <h1 className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">My Quotes</h1>
+      <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">My Quotes</h1>
 
       {quotes.length === 0 ? (
         <EmptyState
-          icon="📋"
+          icon={FileText}
           title="No quotes yet"
           description="Submit a floor plan to receive your first quote"
           action={{ label: 'Submit a Plan', onClick: () => router.push('/portal/submit') }}
@@ -76,7 +77,7 @@ export default function PortalQuotesPage() {
                     <StatusBadge status={q.status} />
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">
+                    <span className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">
                       ${Number(q.total || 0).toLocaleString('en-NZ', { minimumFractionDigits: 2 })}
                     </span>
                     <span className="text-xs text-[#8e8e93]">{timeAgo(q.created_at)}</span>
@@ -112,7 +113,7 @@ export default function PortalQuotesPage() {
                         <span className="text-[#8e8e93]">GST 15%</span>
                         <span>${Number(q.gst || 0).toFixed(2)}</span>
                       </div>
-                      <div className="flex justify-between font-black text-base mt-2">
+                      <div className="flex justify-between font-bold text-base mt-2">
                         <span className="text-[#1c1c1e] dark:text-[#f5f5f7]">Total</span>
                         <span className="text-[#0A84FF]">${Number(q.total || 0).toFixed(2)} NZD</span>
                       </div>

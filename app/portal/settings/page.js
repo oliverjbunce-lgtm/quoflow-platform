@@ -32,10 +32,10 @@ export default function PortalSettingsPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-lg">
-      <h1 className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Settings</h1>
+      <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Settings</h1>
 
       <form onSubmit={handleSave} className="space-y-5 bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl p-6">
-        <h2 className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">Personal Info</h2>
+        <h2 className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">Personal Info</h2>
 
         {[
           { key: 'name', label: 'Full Name', type: 'text' },
@@ -79,7 +79,7 @@ export default function PortalSettingsPage() {
           disabled={saving}
           whileHover={{ scale: 1.01 }}
           whileTap={{ scale: 0.98 }}
-          className={`w-full py-3.5 font-black rounded-xl transition-all ${
+          className={`w-full py-3.5 font-bold rounded-xl transition-all ${
             saved ? 'bg-[#34c759] text-white' : 'bg-[#0A84FF] hover:bg-[#0070d6] text-white'
           }`}
         >

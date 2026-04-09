@@ -96,7 +96,7 @@ export default function PortalSubmitPage() {
             <polyline points="20 6 9 17 4 12"/>
           </svg>
         </div>
-        <h2 className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2">Submitted!</h2>
+        <h2 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2">Submitted!</h2>
         <p className="text-[#8e8e93] max-w-sm mb-8">Your floor plan has been received. We'll review it and send you a quote shortly.</p>
         <div className="flex gap-3">
           <motion.button whileHover={{ scale: 1.01 }} onClick={() => router.push('/portal/quotes')} className="px-5 py-3 bg-[#0A84FF] text-white font-semibold rounded-xl">
@@ -112,7 +112,7 @@ export default function PortalSubmitPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 max-w-2xl">
-      <h1 className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Submit a Job</h1>
+      <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Submit a Job</h1>
 
       {/* Mode tabs */}
       {uploadState === 'idle' && (
@@ -152,7 +152,7 @@ export default function PortalSubmitPage() {
                   <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
                 </svg>
               </motion.div>
-              <h3 className="text-xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">
+              <h3 className="text-xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">
                 {isDragActive ? 'Drop to submit' : 'Drop your floor plan here'}
               </h3>
               <p className="text-[#8e8e93] text-sm">or click to browse — PDF files only</p>
@@ -201,7 +201,7 @@ export default function PortalSubmitPage() {
                 disabled={submitting || !selectedPage}
                 whileHover={{ scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
-                className="w-full py-4 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-black text-lg rounded-xl transition-all disabled:opacity-50"
+                className="w-full py-4 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-bold text-lg rounded-xl transition-all disabled:opacity-50"
               >
                 {submitting ? 'Submitting…' : 'Submit for Analysis'}
               </motion.button>
@@ -242,7 +242,7 @@ export default function PortalSubmitPage() {
             disabled={submitting}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
-            className="w-full py-3.5 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-black rounded-xl transition-all disabled:opacity-50"
+            className="w-full py-3.5 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-bold rounded-xl transition-all disabled:opacity-50"
           >
             {submitting ? 'Submitting…' : 'Submit Job'}
           </motion.button>

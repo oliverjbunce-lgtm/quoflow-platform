@@ -39,7 +39,7 @@ export default function PortalLayout({ children }) {
                 <path d="M4 4h8v2H6v10H4V4zM8 8h12v2H10v6H8V8z" fill="white"/>
               </svg>
             </div>
-            <span className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">Quoflow</span>
+            <span className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">Quoflow</span>
           </Link>
 
           <nav className="hidden sm:flex items-center gap-1 flex-1">

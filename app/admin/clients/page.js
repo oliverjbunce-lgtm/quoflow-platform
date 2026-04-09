@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import EmptyState from '@/components/EmptyState'
 import { SkeletonRow } from '@/components/SkeletonCard'
+import { Users } from 'lucide-react'
 
 function timeAgo(ts) {
   if (!ts) return 'Never'
@@ -49,7 +50,7 @@ export default function ClientsPage() {
       {/* Invite section */}
       <div className="bg-[#0A84FF]/10 dark:bg-[#0A84FF]/15 border border-[#0A84FF]/20 rounded-2xl p-5 flex items-center gap-4">
         <div className="flex-1">
-          <h3 className="font-black text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">Invite a Builder</h3>
+          <h3 className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">Invite a Builder</h3>
           <p className="text-sm text-[#8e8e93]">Generate a unique invite link for a new builder to create their account.</p>
           {inviteUrl && (
             <div className="mt-3 flex items-center gap-2">
@@ -83,7 +84,7 @@ export default function ClientsPage() {
       {/* Table */}
       <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-white/10">
-          <h2 className="font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Builders / Clients</h2>
+          <h2 className="font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Builders / Clients</h2>
         </div>
         <table className="w-full">
           <thead>
@@ -99,7 +100,7 @@ export default function ClientsPage() {
             ) : clients.length === 0 ? (
               <tr><td colSpan={5}>
                 <EmptyState
-                  icon="👷"
+                  icon={Users}
                   title="No builders yet"
                   description="Invite your first builder to get started"
                   action={{ label: '+ Invite Builder', onClick: generateInvite }}

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
+import { Package } from 'lucide-react'
 
 const ORDER_STEPS = ['pending', 'processing', 'shipped', 'delivered']
 
@@ -34,11 +35,11 @@ export default function PortalOrdersPage() {
 
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <h1 className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">My Orders</h1>
+      <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">My Orders</h1>
 
       {orders.length === 0 ? (
         <EmptyState
-          icon="📦"
+          icon={Package}
           title="No orders yet"
           description="Accept a quote to create your first order"
           action={{ label: 'View Quotes', onClick: () => router.push('/portal/quotes') }}

@@ -48,7 +48,7 @@ export default function TopBar({ user, onMenuOpen }) {
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 8 }}
           transition={{ duration: 0.2 }}
-          className="text-lg font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]"
+          className="text-lg font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]"
         >
           {title}
         </motion.h1>

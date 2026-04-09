@@ -85,7 +85,7 @@ export default function QuoteDetailPage() {
             </svg>
           </button>
           <div>
-            <h1 className="text-2xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">{quote.id}</h1>
+            <h1 className="text-2xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">{quote.id}</h1>
             <p className="text-sm text-[#8e8e93]">{quote.client_name || 'No client'}</p>
           </div>
           <StatusBadge status={quote.status} size="lg" />
@@ -151,7 +151,7 @@ export default function QuoteDetailPage() {
                     </div>
                     <span className="text-sm text-[#8e8e93]">×{item.qty}</span>
                     <span className="text-sm text-[#8e8e93]">${Number(item.unit_price || 0).toFixed(2)}/ea</span>
-                    <span className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">${Number(item.total || item.qty * item.unit_price).toFixed(2)}</span>
+                    <span className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">${Number(item.total || item.qty * item.unit_price).toFixed(2)}</span>
                   </div>
                 ))}
                 <div className="pt-4 border-t border-gray-100 dark:border-white/10 space-y-2">
@@ -161,7 +161,7 @@ export default function QuoteDetailPage() {
                   <div className="flex justify-between text-sm text-[#8e8e93]">
                     <span>GST 15%</span><span className="text-[#1c1c1e] dark:text-[#f5f5f7]">${gst.toFixed(2)}</span>
                   </div>
-                  <div className="flex justify-between text-xl font-black">
+                  <div className="flex justify-between text-xl font-bold">
                     <span className="text-[#1c1c1e] dark:text-[#f5f5f7]">Total NZD</span>
                     <span className="text-[#0A84FF]">${total.toFixed(2)}</span>
                   </div>
@@ -196,7 +196,7 @@ export default function QuoteDetailPage() {
         {/* Summary sidebar */}
         <div className="space-y-4">
           <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl p-5">
-            <h3 className="font-black text-sm tracking-[-0.01em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-4">Quote Summary</h3>
+            <h3 className="font-bold text-sm tracking-[-0.01em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-4">Quote Summary</h3>
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-[#8e8e93]">Quote ID</span>
@@ -215,8 +215,8 @@ export default function QuoteDetailPage() {
                 <span className="font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">{items.length}</span>
               </div>
               <div className="flex justify-between pt-2 border-t border-gray-100 dark:border-white/10">
-                <span className="font-black text-[#1c1c1e] dark:text-[#f5f5f7]">Total</span>
-                <span className="font-black text-[#0A84FF] text-lg">${total.toFixed(2)}</span>
+                <span className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">Total</span>
+                <span className="font-bold text-[#0A84FF] text-lg">${total.toFixed(2)}</span>
               </div>
             </div>
           </div>

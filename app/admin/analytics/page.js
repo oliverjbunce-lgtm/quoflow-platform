@@ -4,6 +4,7 @@ import { motion } from 'framer-motion'
 import StatsCard from '@/components/StatsCard'
 import { SkeletonStat } from '@/components/SkeletonCard'
 import { DETECTION_COLOURS, DETECTION_LABELS } from '@/lib/mockData'
+import { ScanLine, FileText, Check, Search } from 'lucide-react'
 
 function normalise(name) {
   return DETECTION_LABELS[name] || name?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Unknown'
@@ -51,7 +52,7 @@ function HorizBars({ data, maxVal }) {
                 style={{ background: colour }}
               />
             </div>
-            <span className="text-sm font-black text-[#1c1c1e] dark:text-[#f5f5f7] tabular-nums w-8 text-right">{d.value}</span>
+            <span className="text-sm font-bold text-[#1c1c1e] dark:text-[#f5f5f7] tabular-nums w-8 text-right">{d.value}</span>
           </div>
         )
       })}
@@ -96,10 +97,10 @@ export default function AnalyticsPage() {
           Array.from({ length: 4 }).map((_, i) => <SkeletonStat key={i} />)
         ) : (
           <>
-            <StatsCard icon="📐" label="Total Plans" value={stats.analysesCount || 0} color="#0A84FF" />
-            <StatsCard icon="📋" label="Total Quotes" value={stats.quotesCount || 0} color="#ff9f0a" />
-            <StatsCard icon="✅" label="Win Rate" value={winPct} suffix="%" color="#34c759" />
-            <StatsCard icon="🔍" label="Avg Components/Plan" value={stats.analysesCount > 0 ? Math.round(stats.detectionsCount / stats.analysesCount) : 0} color="#9333ea" />
+            <StatsCard icon={ScanLine} label="Total Plans" value={stats.analysesCount || 0} color="#0A84FF" />
+            <StatsCard icon={FileText} label="Total Quotes" value={stats.quotesCount || 0} color="#ff9f0a" />
+            <StatsCard icon={Check} label="Win Rate" value={winPct} suffix="%" color="#34c759" />
+            <StatsCard icon={Search} label="Avg Components/Plan" value={stats.analysesCount > 0 ? Math.round(stats.detectionsCount / stats.analysesCount) : 0} color="#9333ea" />
           </>
         )}
       </div>
@@ -133,7 +134,7 @@ export default function AnalyticsPage() {
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-2xl font-black text-[#1c1c1e] dark:text-[#f5f5f7]">{winPct}%</span>
+                <span className="text-2xl font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">{winPct}%</span>
               </div>
             </div>
             <div className="space-y-3">
@@ -145,7 +146,7 @@ export default function AnalyticsPage() {
                 <div className="w-2.5 h-2.5 rounded-full bg-gray-200 dark:bg-zinc-600" />
                 <span className="text-sm text-[#8e8e93]">Other ({100 - (stats.winRate || 0)}%)</span>
               </div>
-              <div className="text-sm font-black text-[#1c1c1e] dark:text-[#f5f5f7]">
+              <div className="text-sm font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">
                 {stats.quotesCount || 0} total quotes
               </div>
             </div>

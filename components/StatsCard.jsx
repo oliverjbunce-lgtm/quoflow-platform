@@ -22,7 +22,7 @@ function CountingNumber({ value, prefix = '', suffix = '' }) {
   )
 }
 
-export default function StatsCard({ icon, label, value, trend, prefix = '', suffix = '', color = '#0A84FF' }) {
+export default function StatsCard({ icon: Icon, label, value, trend, prefix = '', suffix = '', color = '#0A84FF' }) {
   const isPositive = trend > 0
   const isNegative = trend < 0
 
@@ -35,10 +35,10 @@ export default function StatsCard({ icon, label, value, trend, prefix = '', suff
     >
       <div className="flex items-start justify-between mb-4">
         <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg"
+          className="w-10 h-10 rounded-xl flex items-center justify-center"
           style={{ background: color }}
         >
-          {icon}
+          {Icon && <Icon size={20} color="white" strokeWidth={1.5} />}
         </div>
         {trend !== undefined && (
           <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${
@@ -51,7 +51,7 @@ export default function StatsCard({ icon, label, value, trend, prefix = '', suff
         )}
       </div>
 
-      <div className="text-3xl font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">
+      <div className="text-3xl font-bold tabular-nums tracking-tight text-[#1c1c1e] dark:text-[#f5f5f7] mb-1">
         <CountingNumber value={Number(value) || 0} prefix={prefix} suffix={suffix} />
       </div>
       <div className="text-xs font-semibold tracking-[0.12em] uppercase text-[#8e8e93]">

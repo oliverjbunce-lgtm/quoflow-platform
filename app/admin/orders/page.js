@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
 import { SkeletonRow } from '@/components/SkeletonCard'
+import { Package } from 'lucide-react'
 
 function timeAgo(ts) {
   if (!ts) return ''
@@ -40,7 +41,7 @@ export default function OrdersPage() {
 
       <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
-          <h2 className="font-black tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">All Orders</h2>
+          <h2 className="font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">All Orders</h2>
           <span className="text-xs text-[#8e8e93]">{orders.length} orders</span>
         </div>
 
@@ -60,7 +61,7 @@ export default function OrdersPage() {
             ) : orders.length === 0 ? (
               <tr><td colSpan={5}>
                 <EmptyState
-                  icon="📦"
+                  icon={Package}
                   title="No orders yet"
                   description="Orders are created when quotes are accepted"
                   action={{ label: 'View Quotes', onClick: () => router.push('/admin/quotes') }}

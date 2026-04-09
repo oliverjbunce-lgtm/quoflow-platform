@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
 import { SkeletonRow } from '@/components/SkeletonCard'
+import { FileText } from 'lucide-react'
 
 const TABS = ['all', 'pending', 'sent', 'accepted', 'draft']
 
@@ -96,7 +97,7 @@ export default function QuotesPage() {
               <tr>
                 <td colSpan={6}>
                   <EmptyState
-                    icon="📋"
+                    icon={FileText}
                     title="No quotes found"
                     description={search ? `No quotes match "${search}"` : 'Create your first quote by analysing a floor plan'}
                     action={{ label: '+ New Analysis', onClick: () => router.push('/admin/analyse') }}
@@ -115,7 +116,7 @@ export default function QuotesPage() {
                 >
                   <td className="px-4 py-4 pl-6 font-mono text-sm font-semibold text-[#0A84FF]">{q.id}</td>
                   <td className="px-4 py-4 text-sm font-medium text-[#1c1c1e] dark:text-[#f5f5f7]">{q.client_name || '—'}</td>
-                  <td className="px-4 py-4 text-sm font-black text-[#1c1c1e] dark:text-[#f5f5f7]">
+                  <td className="px-4 py-4 text-sm font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">
                     ${Number(q.total || 0).toLocaleString('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td className="px-4 py-4"><StatusBadge status={q.status} /></td>
