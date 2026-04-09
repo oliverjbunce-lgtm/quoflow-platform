@@ -148,9 +148,9 @@ export default function PlanReviewPage() {
         else if (typeof rawBbox === 'object') { x1 = rawBbox.x1; y1 = rawBbox.y1; x2 = rawBbox.x2; y2 = rawBbox.y2 }
         else return
         if (x1 == null) return
-        if (x1 <= 1 && x2 <= 1) {
-          x1 *= img.naturalWidth || displayW; x2 *= img.naturalWidth || displayW
-          y1 *= img.naturalHeight || displayH; y2 *= img.naturalHeight || displayH
+        // Normalised 0-1 coords → pixel coords in natural image space
+        if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
+          x1 *= naturalW; y1 *= naturalH; x2 *= naturalW; y2 *= naturalH
         }
         const sx1 = x1 * scaleX, sy1 = y1 * scaleY
         const sw = (x2 - x1) * scaleX, sh = (y2 - y1) * scaleY
