@@ -1,20 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
-  eslint: { ignoreDuringBuilds: true },
+  serverExternalPackages: ['better-sqlite3'],
+  turbopack: {},
   images: {
     remotePatterns: [
       { hostname: 'logo.clearbit.com' },
       { hostname: 'avatars.githubusercontent.com' },
     ],
-  },
-  experimental: {
-    serverComponentsExternalPackages: ['better-sqlite3'],
-  },
-  webpack: (config) => {
-    config.resolve.alias.canvas = false
-    config.resolve.alias.encoding = false
-    return config
   },
 }
 
