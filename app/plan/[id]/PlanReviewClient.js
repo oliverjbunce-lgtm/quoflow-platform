@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Trash2, ChevronRight, CheckCircle, Plus } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
 
 const DOOR_TYPES = [
   'L_prehung_door', 'R_prehung_door', 'Double_prehung_door',
@@ -489,7 +488,7 @@ export default function PlanReviewPage() {
             </div>
           )}
 
-          <AnimatePresence>
+          <>
             {pageDetections.map((det) => (
               <DetectionCard
                 key={det.id}
@@ -500,7 +499,7 @@ export default function PlanReviewPage() {
                 onDelete={() => deleteDetection(det.id)}
               />
             ))}
-          </AnimatePresence>
+          </>
 
           {pages.length > 1 && detections.filter(d => (d.page_num || 1) !== currentPage).length > 0 && (
             <div className="px-4 pt-4 pb-1">
@@ -579,12 +578,7 @@ function DetectionCard({ det, isSelected, onClick, onUpdate, onDelete }) {
   const specs = det.specs || {}
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 4 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      className={`mx-3 my-1.5 rounded-xl border transition-all cursor-pointer ${
+    <div className={`mx-3 my-1.5 rounded-xl border transition-all cursor-pointer ${
         isSelected
           ? 'border-[#0A84FF] bg-blue-50/50 dark:bg-blue-950/20 shadow-md'
           : 'border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800/50 hover:border-gray-300'
@@ -615,13 +609,9 @@ function DetectionCard({ det, isSelected, onClick, onUpdate, onDelete }) {
       </div>
 
       {/* Expanded spec fields */}
-      <AnimatePresence>
+      <>
         {isSelected && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden border-t border-gray-100 dark:border-white/5"
+          <div className="overflow-hidden border-t border-gray-100 dark:border-white/5"
           >
             <div className="p-3 space-y-3">
               {/* Door type */}
@@ -690,10 +680,10 @@ function DetectionCard({ det, isSelected, onClick, onUpdate, onDelete }) {
                 <Trash2 size={12} strokeWidth={1.5} /> Remove detection
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
-    </motion.div>
+      </>
+    </div>
   )
 }
 
