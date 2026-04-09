@@ -3,9 +3,19 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import { useRouter } from 'next/navigation'
+import { ArrowLeft, FileText, ScanLine, Plus, Trash2 } from 'lucide-react'
 import { DETECTION_COLOURS, DETECTION_LABELS, DEFAULT_UNIT_PRICES } from '@/lib/mockData'
 
-const STATES = { IDLE: 'idle', UPLOADING: 'uploading', SELECTING: 'selecting', SCANNING: 'scanning', REVIEWING: 'reviewing', DONE: 'done' }
+const STATES = {
+  IDLE: 'idle',
+  UPLOADING: 'uploading',
+  SELECTING: 'selecting',
+  SCANNING: 'scanning',
+  REVIEWING: 'reviewing',
+  EXTRACTING: 'extracting',
+  SCHEDULE_REVIEW: 'schedule-review',
+  DONE: 'done',
+}
 
 function normalise(name) {
   return DETECTION_LABELS[name] || name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
@@ -19,34 +29,150 @@ function getUnitPrice(name) {
   return DEFAULT_UNIT_PRICES[normalise(name)] || 285
 }
 
+// ─── DetectionsTab ────────────────────────────────────────────────────────────
+function DetectionsTab({ detections, setDetections }) {
+  const updateQty = (i, qty) => {
+    const updated = [...detections]
+    updated[i] = { ...updated[i], qty: Math.max(1, qty) }
+    setDetections(updated)
+  }
+  const updatePrice = (i, price) => {
+    const updated = [...detections]
+    updated[i] = { ...updated[i], unit_price: parseFloat(price) || 0 }
+    setDetections(updated)
+  }
+  const remove = (i) => setDetections(detections.filter((_, j) => j !== i))
+
+  const subtotal = detections.reduce((s, d) => s + (d.qty || 1) * (d.unit_price || 0), 0)
+
+  return (
+    <div className="p-4 space-y-2">
+      {detections.length === 0 && (
+        <div className="py-12 text-center text-sm text-gray-400">No detections yet</div>
+      )}
+      {detections.map((det, i) => {
+        const color = getColour(det.class_name)
+        return (
+          <div key={i} className="flex items-center gap-2 p-3 rounded-xl bg-gray-50 dark:bg-white/5 group">
+            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{(det.class_name || '').replace(/_/g, ' ')}</p>
+              {det.confidence != null && (
+                <p className="text-xs text-gray-400">{Math.round(det.confidence * 100)}% confidence</p>
+              )}
+              {det.specs && <p className="text-xs text-gray-400 truncate">{det.specs}</p>}
+            </div>
+            {/* Qty */}
+            <div className="flex items-center gap-1">
+              <button onClick={() => updateQty(i, (det.qty || 1) - 1)} className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-sm flex items-center justify-center">−</button>
+              <span className="w-6 text-center text-sm tabular-nums">{det.qty || 1}</span>
+              <button onClick={() => updateQty(i, (det.qty || 1) + 1)} className="w-6 h-6 rounded-lg bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-sm flex items-center justify-center">+</button>
+            </div>
+            {/* Price */}
+            <div className="w-20">
+              <input
+                type="number"
+                value={det.unit_price || 0}
+                onChange={e => updatePrice(i, e.target.value)}
+                className="w-full text-right text-sm bg-transparent border-b border-gray-200 dark:border-white/10 focus:border-[#0A84FF] outline-none tabular-nums py-0.5"
+              />
+            </div>
+            <button onClick={() => remove(i)} className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-500">
+              <Trash2 size={14} strokeWidth={1.5} />
+            </button>
+          </div>
+        )
+      })}
+      <div className="pt-3 border-t border-gray-200 dark:border-white/10 flex justify-between text-sm">
+        <span className="text-gray-500">{detections.length} components</span>
+        <span className="font-semibold tabular-nums">${subtotal.toFixed(2)}</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── QuoteTab ─────────────────────────────────────────────────────────────────
+function QuoteTab({ detections, tenantId }) {
+  const [clientName, setClientName] = useState('')
+  const subtotal = detections.reduce((s, d) => s + (d.qty || 1) * (d.unit_price || 0), 0)
+  const gst = subtotal * 0.15
+  const total = subtotal + gst
+
+  return (
+    <div className="p-4 space-y-4">
+      <div>
+        <label className="text-xs font-semibold tracking-wide uppercase text-gray-400 mb-1 block">Client Name</label>
+        <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Acme Construction Ltd"
+          className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 bg-transparent text-sm focus:ring-2 focus:ring-[#0A84FF]/20 focus:border-[#0A84FF] outline-none" />
+      </div>
+      <div className="space-y-1.5">
+        {detections.map((det, i) => (
+          <div key={i} className="flex justify-between text-sm">
+            <span className="text-gray-600 dark:text-gray-400 truncate flex-1 mr-2">{(det.class_name || '').replace(/_/g, ' ')} ×{det.qty || 1}</span>
+            <span className="tabular-nums font-medium">${((det.qty || 1) * (det.unit_price || 0)).toFixed(2)}</span>
+          </div>
+        ))}
+      </div>
+      <div className="pt-3 border-t border-gray-200 dark:border-white/10 space-y-1.5">
+        <div className="flex justify-between text-sm text-gray-500">
+          <span>Subtotal</span><span className="tabular-nums">${subtotal.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-sm text-gray-500">
+          <span>GST (15%)</span><span className="tabular-nums">${gst.toFixed(2)}</span>
+        </div>
+        <div className="flex justify-between text-base font-bold text-[#0A84FF]">
+          <span>Total NZD</span><span className="tabular-nums">${total.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── NotesTab ─────────────────────────────────────────────────────────────────
+function NotesTab({ notes, setNotes }) {
+  return (
+    <div className="p-4">
+      <label className="text-xs font-semibold tracking-wide uppercase text-gray-400 block mb-2">Internal Notes</label>
+      <textarea
+        value={notes}
+        onChange={e => setNotes(e.target.value)}
+        placeholder="Notes visible to staff only…"
+        rows={8}
+        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800 text-[#1c1c1e] dark:text-[#f5f5f7] text-sm focus:ring-2 focus:ring-[#0A84FF]/20 focus:border-[#0A84FF] outline-none resize-none"
+      />
+    </div>
+  )
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 export default function AnalysisOverlay({ onClose }) {
   const [state, setState] = useState(STATES.IDLE)
   const [file, setFile] = useState(null)
-  const [pages, setPages] = useState([]) // [{pageNum, thumbnail}]
+  const [pages, setPages] = useState([])
   const [selectedPages, setSelectedPages] = useState([])
   const [previewPage, setPreviewPage] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [planId, setPlanId] = useState(null)
   const [scanProgress, setScanProgress] = useState(0)
   const [detections, setDetections] = useState([])
-  const [liveDetections, setLiveDetections] = useState([]) // revealed during scan
+  const [liveDetections, setLiveDetections] = useState([])
   const [scanImage, setScanImage] = useState(null)
+  const [reviewingPage, setReviewingPage] = useState(null)
   const [analysisId, setAnalysisId] = useState(null)
-  const [quoteItems, setQuoteItems] = useState([])
-  const [clientName, setClientName] = useState('')
   const [notes, setNotes] = useState('')
-  const [reviewTab, setReviewTab] = useState('detections')
+  const [activeTab, setActiveTab] = useState('Detections')
   const [savedQuoteId, setSavedQuoteId] = useState(null)
   const [scanTime, setScanTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [scheduleItems, setScheduleItems] = useState([])
+
   const canvasRef = useRef(null)
-  const imgRef = useRef(null)
+  const imageRef = useRef(null)
   const router = useRouter()
 
-  // PDF rendering
+  // ─── PDF rendering ───────────────────────────────────────────────────────
   async function renderPDFPages(arrayBuffer) {
     try {
-      // Dynamic import pdfjs
       const pdfjsLib = await import('pdfjs-dist')
       pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
@@ -58,13 +184,12 @@ export default function AnalysisOverlay({ onClose }) {
         canvas.width = viewport.width
         canvas.height = viewport.height
         await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise
-        pageImages.push({ pageNum: i, thumbnail: canvas.toDataURL('image/jpeg', 0.8) })
+        pageImages.push({ pageNum: i, thumbnail: canvas.toDataURL('image/jpeg', 0.8), dataUrl: canvas.toDataURL('image/jpeg', 0.8) })
       }
       return pageImages
     } catch (err) {
       console.error('PDF render error:', err)
-      // Return a single placeholder page
-      return [{ pageNum: 1, thumbnail: null }]
+      return [{ pageNum: 1, thumbnail: null, dataUrl: null }]
     }
   }
 
@@ -75,17 +200,14 @@ export default function AnalysisOverlay({ onClose }) {
     setState(STATES.UPLOADING)
     setUploadProgress(0)
 
-    // Simulate upload progress
     const progressInterval = setInterval(() => {
       setUploadProgress(p => Math.min(p + 15, 90))
     }, 200)
 
     try {
-      // Render PDF pages in background
       const ab = await f.arrayBuffer()
       const pagesPromise = renderPDFPages(ab.slice(0))
 
-      // Upload to server
       const formData = new FormData()
       formData.append('file', f)
       const uploadRes = await fetch('/api/plans/upload', { method: 'POST', body: formData })
@@ -94,11 +216,9 @@ export default function AnalysisOverlay({ onClose }) {
       setUploadProgress(100)
       setPlanId(uploadData.planId)
 
-      // Wait for pages
       const renderedPages = await pagesPromise
       setPages(renderedPages)
       setPreviewPage(renderedPages[0])
-      // Auto-select first page
       setSelectedPages([renderedPages[0]?.pageNum || 1])
 
       setTimeout(() => setState(STATES.SELECTING), 300)
@@ -117,6 +237,7 @@ export default function AnalysisOverlay({ onClose }) {
     onDragLeave: () => setIsDragging(false),
   })
 
+  // ─── Analysis ────────────────────────────────────────────────────────────
   async function startAnalysis() {
     if (!selectedPages.length) return
     setState(STATES.SCANNING)
@@ -124,10 +245,10 @@ export default function AnalysisOverlay({ onClose }) {
     setLiveDetections([])
     const startTime = Date.now()
 
-    const pageImage = pages.find(p => selectedPages.includes(p.pageNum))
-    setScanImage(pageImage?.thumbnail || null)
+    const pageData = pages.find(p => selectedPages.includes(p.pageNum))
+    setScanImage(pageData?.thumbnail || null)
+    setReviewingPage(pageData || null)
 
-    // Progress animation
     const scanInterval = setInterval(() => {
       setScanProgress(p => {
         if (p >= 95) return p
@@ -142,17 +263,22 @@ export default function AnalysisOverlay({ onClose }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pageNums: selectedPages,
-          imageBase64: pageImage?.thumbnail || '',
+          imageBase64: pageData?.thumbnail || '',
         }),
       })
       const data = await res.json()
       clearInterval(scanInterval)
 
       const dets = data.detections || []
-      setDetections(dets)
+      // Map detections to flat format with qty and unit_price
+      const flatDets = dets.map(d => ({
+        ...d,
+        qty: 1,
+        unit_price: getUnitPrice(d.class_name),
+      }))
+      setDetections(flatDets)
       setAnalysisId(data.analysisId)
 
-      // Animate detections appearing one by one
       for (let i = 0; i < dets.length; i++) {
         await new Promise(r => setTimeout(r, 200 + Math.random() * 300))
         setLiveDetections(prev => [...prev, dets[i]])
@@ -161,16 +287,6 @@ export default function AnalysisOverlay({ onClose }) {
 
       setScanProgress(100)
       setScanTime(Math.round((Date.now() - startTime) / 100) / 10)
-
-      // Build quote items
-      const grouped = {}
-      dets.forEach(d => {
-        const label = normalise(d.class_name)
-        if (!grouped[label]) grouped[label] = { name: label, class_name: d.class_name, qty: 0, unit_price: getUnitPrice(d.class_name), confidence: d.confidence }
-        grouped[label].qty++
-      })
-      setQuoteItems(Object.values(grouped))
-
       setTimeout(() => setState(STATES.REVIEWING), 1000)
     } catch (err) {
       clearInterval(scanInterval)
@@ -179,19 +295,84 @@ export default function AnalysisOverlay({ onClose }) {
     }
   }
 
+  // ─── Schedule extraction ─────────────────────────────────────────────────
+  const startScheduleExtraction = async () => {
+    if (selectedPages.length === 0) return
+    setState(STATES.EXTRACTING)
+
+    try {
+      const pageData = pages.find(p => selectedPages.includes(p.pageNum))
+      setReviewingPage(pageData || null)
+      const response = await fetch('/api/plans/extract-schedule', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageData: pageData?.dataUrl })
+      })
+      const data = await response.json()
+      setScheduleItems(data.items || [])
+      setState(STATES.SCHEDULE_REVIEW)
+    } catch (err) {
+      console.error('Schedule extraction failed:', err)
+      setScheduleItems([])
+      setState(STATES.SELECTING)
+    }
+  }
+
+  const updateScheduleItem = (i, field, value) => {
+    setScheduleItems(prev => prev.map((item, j) => j === i ? { ...item, [field]: value } : item))
+  }
+
+  const removeScheduleItem = (i) => {
+    setScheduleItems(prev => prev.filter((_, j) => j !== i))
+  }
+
+  const addScheduleItem = () => {
+    setScheduleItems(prev => [...prev, {
+      mark: `D${prev.length + 1}`, type: 'Single Prehung',
+      width_mm: 760, height_mm: 2040, quantity: 1,
+      handing: 'Left Hand', core: 'Hollow Core',
+      finish: 'Primed', frame: 'LJ&P Standard', notes: ''
+    }])
+  }
+
+  const addScheduleToQuote = () => {
+    const newDetections = scheduleItems.map(item => ({
+      class_name: item.type.replace(/ /g, '_'),
+      confidence: null,
+      bbox: null,
+      qty: item.quantity || 1,
+      unit_price: 0,
+      specs: `${item.width_mm}mm × ${item.height_mm}mm · ${item.core} · ${item.finish} · ${item.frame}`,
+      mark: item.mark,
+      handing: item.handing,
+      fromSchedule: true,
+    }))
+    setDetections(newDetections)
+    setState(STATES.REVIEWING)
+  }
+
+  // ─── Save quote ───────────────────────────────────────────────────────────
+  async function handleSaveDraft() {
+    await saveQuote(false)
+  }
+
+  async function handleApproveQuote() {
+    await saveQuote(true)
+  }
+
   async function saveQuote(sendEmail = false) {
-    const items = quoteItems.map(item => ({
-      name: item.name,
-      qty: item.qty,
-      unit_price: item.unit_price,
-      total: item.qty * item.unit_price,
+    const items = detections.map(det => ({
+      name: normalise(det.class_name),
+      qty: det.qty || 1,
+      unit_price: det.unit_price || 0,
+      total: (det.qty || 1) * (det.unit_price || 0),
     }))
 
     try {
       const res = await fetch('/api/quotes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysisId, clientName, items, notes }),
+        body: JSON.stringify({ analysisId, items, notes }),
       })
       const data = await res.json()
       setSavedQuoteId(data.quoteId)
@@ -206,80 +387,86 @@ export default function AnalysisOverlay({ onClose }) {
     }
   }
 
-  const subtotal = quoteItems.reduce((s, i) => s + i.qty * i.unit_price, 0)
-  const gst = subtotal * 0.15
-  const total = subtotal + gst
-
-  // Draw detection boxes on canvas
+  // ─── Canvas drawing (Fix 1) ───────────────────────────────────────────────
   useEffect(() => {
     if (state !== STATES.REVIEWING) return
+    if (!canvasRef.current || !imageRef.current || !detections || detections.length === 0) return
+
     const canvas = canvasRef.current
-    const img = imgRef.current
-    if (!canvas || !img) return
+    const img = imageRef.current
 
-    const draw = () => {
-      canvas.width = img.offsetWidth
-      canvas.height = img.offsetHeight
+    const drawBoxes = () => {
+      const displayW = img.clientWidth
+      const displayH = img.clientHeight
+
+      if (displayW === 0 || displayH === 0) return
+
+      canvas.width = displayW
+      canvas.height = displayH
+
       const ctx = canvas.getContext('2d')
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      ctx.clearRect(0, 0, displayW, displayH)
 
-      const W = canvas.width, H = canvas.height
+      const scaleX = displayW / (img.naturalWidth || displayW)
+      const scaleY = displayH / (img.naturalHeight || displayH)
 
-      detections.forEach((det, i) => {
-        const bbox = det.bbox || {}
-        // Normalise bbox - could be fractional or pixel coords
-        let x1, y1, x2, y2
-        if (bbox.x1 !== undefined) {
-          if (bbox.x1 <= 1) {
-            // Fractional
-            x1 = bbox.x1 * W; y1 = bbox.y1 * H
-            x2 = (bbox.x1 + (bbox.x2 || 0.1)) * W; y2 = (bbox.y1 + (bbox.y2 || 0.1)) * H
-          } else {
-            x1 = bbox.x1; y1 = bbox.y1; x2 = bbox.x2; y2 = bbox.y2
-          }
-        } else {
-          // Random position for demo
-          x1 = (0.05 + (i * 0.11 % 0.75)) * W
-          y1 = (0.05 + (i * 0.13 % 0.75)) * H
-          x2 = x1 + 0.12 * W
-          y2 = y1 + 0.1 * H
+      detections.forEach(det => {
+        const bbox = det.bbox || det.box || det.xyxy || []
+        if (!bbox || bbox.length < 4) return
+
+        let [x1, y1, x2, y2] = bbox
+
+        // Handle normalised coords (0–1 range) — convert to pixels
+        if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
+          x1 = x1 * (img.naturalWidth || displayW)
+          y1 = y1 * (img.naturalHeight || displayH)
+          x2 = x2 * (img.naturalWidth || displayW)
+          y2 = y2 * (img.naturalHeight || displayH)
         }
 
-        const colour = getColour(det.class_name)
-        const label = normalise(det.class_name)
+        const sx1 = x1 * scaleX
+        const sy1 = y1 * scaleY
+        const sw = (x2 - x1) * scaleX
+        const sh = (y2 - y1) * scaleY
 
-        // Draw box
-        ctx.strokeStyle = colour
+        if (sw <= 0 || sh <= 0 || sx1 < 0 || sy1 < 0) return
+        if (sx1 > displayW || sy1 > displayH) return
+
+        const color = getColour(det.class_name)
+
+        ctx.strokeStyle = color
         ctx.lineWidth = 2
-        ctx.beginPath()
-        ctx.rect(x1, y1, x2 - x1, y2 - y1)
-        ctx.stroke()
+        ctx.strokeRect(sx1, sy1, sw, sh)
 
-        // Fill with light tint
-        ctx.fillStyle = colour + '18'
-        ctx.fill()
-
-        // Label background
-        const confText = det.confidence ? `${Math.round(det.confidence * 100)}%` : ''
-        const labelText = `${label} ${confText}`
-        ctx.font = '10px Inter, sans-serif'
+        const label = (det.class_name || '').replace(/_/g, ' ')
+        const conf = det.confidence ? ` ${Math.round(det.confidence * 100)}%` : ''
+        const labelText = label + conf
+        ctx.font = 'bold 11px Inter, -apple-system, sans-serif'
         const textW = ctx.measureText(labelText).width + 8
-        ctx.fillStyle = colour
+        const labelH = 20
+
+        ctx.fillStyle = color
         ctx.beginPath()
-        ctx.roundRect(x1, y1 - 20, textW, 18, 3)
+        ctx.roundRect(sx1, Math.max(0, sy1 - labelH), textW, labelH, [4, 4, 0, 0])
         ctx.fill()
 
-        ctx.fillStyle = 'white'
-        ctx.fillText(labelText, x1 + 4, y1 - 6)
+        ctx.fillStyle = '#ffffff'
+        ctx.fillText(labelText, sx1 + 4, Math.max(labelH, sy1) - 4)
       })
     }
 
-    draw()
-    window.addEventListener('resize', draw)
-    return () => window.removeEventListener('resize', draw)
-  }, [state, detections])
+    if (img.complete && img.naturalWidth > 0) {
+      drawBoxes()
+    } else {
+      img.onload = drawBoxes
+    }
 
-  // Group live detections by type for display
+    const ro = new ResizeObserver(drawBoxes)
+    ro.observe(img)
+    return () => ro.disconnect()
+  }, [detections, reviewingPage, state])
+
+  // ─── Live detections grouping (scan state) ────────────────────────────────
   const liveGrouped = {}
   liveDetections.forEach(d => {
     const label = normalise(d.class_name)
@@ -287,6 +474,7 @@ export default function AnalysisOverlay({ onClose }) {
     liveGrouped[label].count++
   })
 
+  // ─── Render ───────────────────────────────────────────────────────────────
   return (
     <motion.div
       initial={{ y: '100%' }}
@@ -294,9 +482,7 @@ export default function AnalysisOverlay({ onClose }) {
       exit={{ y: '100%' }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       className="fixed inset-0 z-50 flex flex-col"
-      style={{ background: state === STATES.IDLE && isDragActive ? 'rgba(10,132,255,0.06)' : undefined }}
     >
-      {/* Background blur when drag active */}
       {state === STATES.IDLE && (
         <div className="absolute inset-0 bg-[#f2f2f7] dark:bg-[#1c1c1e]">
           {isDragActive && (
@@ -308,7 +494,6 @@ export default function AnalysisOverlay({ onClose }) {
           )}
         </div>
       )}
-
       {state !== STATES.IDLE && (
         <div className="absolute inset-0 bg-[#f2f2f7] dark:bg-[#1c1c1e]" />
       )}
@@ -319,11 +504,7 @@ export default function AnalysisOverlay({ onClose }) {
           onClick={onClose}
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
-          className={`flex items-center gap-1.5 text-sm font-semibold rounded-xl px-3 py-2 transition-colors ${
-            state === STATES.SCANNING
-              ? 'text-[#8e8e93] hover:text-[#1c1c1e] dark:hover:text-[#f5f5f7]'
-              : 'text-[#0A84FF] hover:bg-[#0A84FF]/10'
-          }`}
+          className="flex items-center gap-1.5 text-sm font-semibold rounded-xl px-3 py-2 transition-colors text-[#0A84FF] hover:bg-[#0A84FF]/10"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6"/>
@@ -338,6 +519,8 @@ export default function AnalysisOverlay({ onClose }) {
             {state === STATES.SELECTING && 'Select Pages'}
             {state === STATES.SCANNING && 'Analysing…'}
             {state === STATES.REVIEWING && 'Review & Quote'}
+            {state === STATES.EXTRACTING && 'Reading Schedule…'}
+            {state === STATES.SCHEDULE_REVIEW && 'Door Schedule'}
             {state === STATES.DONE && 'Quote Saved'}
           </h2>
         </div>
@@ -347,7 +530,7 @@ export default function AnalysisOverlay({ onClose }) {
       {/* Content area */}
       <div className="relative z-10 flex-1 overflow-hidden">
 
-        {/* IDLE STATE */}
+        {/* ── IDLE ── */}
         <AnimatePresence>
         {state === STATES.IDLE && (
           <motion.div
@@ -377,7 +560,6 @@ export default function AnalysisOverlay({ onClose }) {
                   </svg>
                 )}
               </motion.div>
-
               <AnimatePresence mode="wait">
                 {isDragActive ? (
                   <motion.div key="drop" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
@@ -399,7 +581,7 @@ export default function AnalysisOverlay({ onClose }) {
         )}
         </AnimatePresence>
 
-        {/* UPLOADING STATE */}
+        {/* ── UPLOADING ── */}
         <AnimatePresence>
         {state === STATES.UPLOADING && (
           <motion.div
@@ -430,7 +612,7 @@ export default function AnalysisOverlay({ onClose }) {
         )}
         </AnimatePresence>
 
-        {/* SELECTING STATE */}
+        {/* ── SELECTING ── */}
         <AnimatePresence>
         {state === STATES.SELECTING && (
           <motion.div
@@ -455,7 +637,7 @@ export default function AnalysisOverlay({ onClose }) {
               )}
             </div>
 
-            {/* Filmstrip */}
+            {/* Filmstrip + action buttons */}
             <div className="border-t border-gray-200/50 dark:border-white/10 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl px-6 py-4">
               <div className="flex gap-3 overflow-x-auto pb-2 mb-4">
                 {pages.map(page => {
@@ -501,24 +683,31 @@ export default function AnalysisOverlay({ onClose }) {
                 })}
               </div>
 
-              <motion.button
-                onClick={startAnalysis}
-                disabled={!selectedPages.length}
-                whileHover={selectedPages.length ? { scale: 1.01 } : {}}
-                whileTap={selectedPages.length ? { scale: 0.98 } : {}}
-                className="w-full py-4 bg-[#0A84FF] hover:bg-[#0070d6] disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold tracking-[-0.01em] text-lg rounded-xl transition-all"
-              >
-                {selectedPages.length
-                  ? `Analyse ${selectedPages.length} page${selectedPages.length > 1 ? 's' : ''}`
-                  : 'Select pages to analyse'
-                }
-              </motion.button>
+              {/* Two action buttons */}
+              <div className="flex gap-3">
+                <button
+                  disabled={selectedPages.length === 0}
+                  onClick={startAnalysis}
+                  className="flex-1 py-3 bg-[#0A84FF] text-white rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <ScanLine size={18} strokeWidth={1.5} />
+                  Detect Components {selectedPages.length > 0 ? `(${selectedPages.length} page${selectedPages.length > 1 ? 's' : ''})` : ''}
+                </button>
+                <button
+                  disabled={selectedPages.length === 0}
+                  onClick={startScheduleExtraction}
+                  className="flex-1 py-3 border border-gray-200 dark:border-white/10 rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors text-sm"
+                >
+                  <FileText size={18} strokeWidth={1.5} />
+                  Read Door Schedule
+                </button>
+              </div>
             </div>
           </motion.div>
         )}
         </AnimatePresence>
 
-        {/* SCANNING STATE */}
+        {/* ── SCANNING ── */}
         <AnimatePresence>
         {state === STATES.SCANNING && (
           <motion.div
@@ -528,7 +717,7 @@ export default function AnalysisOverlay({ onClose }) {
             exit={{ opacity: 0 }}
             className="absolute inset-0 flex"
           >
-            {/* Floor plan (65%) */}
+            {/* Floor plan */}
             <div className="flex-1 relative overflow-hidden bg-black/5 dark:bg-white/5">
               {scanImage && (
                 <img src={scanImage} alt="Floor plan" className="absolute inset-0 w-full h-full object-contain" />
@@ -538,8 +727,6 @@ export default function AnalysisOverlay({ onClose }) {
                   <div className="w-32 h-32 bg-gray-200 dark:bg-zinc-700 rounded-2xl animate-pulse" />
                 </div>
               )}
-
-              {/* Scan line */}
               <motion.div
                 className="absolute left-0 right-0 h-0.5 bg-[#0A84FF] shadow-lg"
                 style={{ boxShadow: '0 0 12px 2px rgba(10,132,255,0.6)' }}
@@ -547,18 +734,9 @@ export default function AnalysisOverlay({ onClose }) {
                 animate={{ top: '100%' }}
                 transition={{ duration: 6, ease: 'linear' }}
               />
-
-              {/* Blue tint following scan line */}
-              <motion.div
-                className="absolute left-0 right-0 pointer-events-none"
-                style={{ background: 'linear-gradient(to bottom, rgba(10,132,255,0.03), transparent 20px)' }}
-                initial={{ top: '0%' }}
-                animate={{ top: '100%' }}
-                transition={{ duration: 6, ease: 'linear' }}
-              />
             </div>
 
-            {/* Right panel (35%) */}
+            {/* Right panel */}
             <motion.div
               initial={{ x: 40, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -568,10 +746,7 @@ export default function AnalysisOverlay({ onClose }) {
               <div className="p-5 border-b border-gray-100 dark:border-white/10">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold tracking-[0.12em] uppercase text-[#8e8e93]">Live Detections</p>
-                  <motion.span
-                    className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] tabular-nums"
-                    key={liveDetections.length}
-                  >
+                  <motion.span className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] tabular-nums" key={liveDetections.length}>
                     {liveDetections.length}
                   </motion.span>
                 </div>
@@ -624,7 +799,7 @@ export default function AnalysisOverlay({ onClose }) {
         )}
         </AnimatePresence>
 
-        {/* REVIEWING STATE */}
+        {/* ── REVIEWING (Fix 1 + Fix 2) ── */}
         <AnimatePresence>
         {state === STATES.REVIEWING && (
           <motion.div
@@ -632,29 +807,44 @@ export default function AnalysisOverlay({ onClose }) {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="absolute inset-0 flex"
+            className="absolute inset-0 flex h-full overflow-hidden"
           >
-            {/* Left: Annotated plan (60%) */}
-            <div className="flex-1 relative overflow-hidden bg-black/5 dark:bg-white/5">
-              {scanImage && (
-                <img ref={imgRef} src={scanImage} alt="Floor plan" className="absolute inset-0 w-full h-full object-contain" />
-              )}
-              <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+            {/* LEFT: Annotated floor plan — 60% */}
+            <div className="flex-1 relative bg-gray-50 dark:bg-black/20 flex items-center justify-center p-6 overflow-hidden">
+              {/* Back button */}
+              <button
+                onClick={() => setState(STATES.SELECTING)}
+                className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors z-10"
+              >
+                <ArrowLeft size={16} strokeWidth={1.5} /> Re-analyse
+              </button>
+
+              {/* Plan image + canvas overlay */}
+              <div className="relative max-w-full max-h-full">
+                <img
+                  ref={imageRef}
+                  src={reviewingPage?.dataUrl || scanImage}
+                  className="max-w-full max-h-full object-contain rounded-xl shadow-lg"
+                  style={{ maxHeight: 'calc(100vh - 120px)' }}
+                  alt="Floor plan"
+                />
+                <canvas
+                  ref={canvasRef}
+                  className="absolute top-0 left-0 pointer-events-none rounded-xl"
+                  style={{ width: '100%', height: '100%' }}
+                />
+              </div>
             </div>
 
-            {/* Right: Quote editor (40%) */}
-            <div className="w-96 border-l border-gray-200/50 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl flex flex-col">
+            {/* RIGHT: Tabs panel — 40% */}
+            <div className="w-[420px] flex-shrink-0 border-l border-gray-200 dark:border-white/10 flex flex-col bg-white dark:bg-zinc-900">
               {/* Tabs */}
-              <div className="flex border-b border-gray-100 dark:border-white/10">
-                {['detections', 'quote', 'notes'].map(tab => (
+              <div className="flex border-b border-gray-200 dark:border-white/10">
+                {['Detections', 'Quote', 'Notes'].map(tab => (
                   <button
                     key={tab}
-                    onClick={() => setReviewTab(tab)}
-                    className={`flex-1 py-3.5 text-xs font-semibold tracking-[0.08em] uppercase transition-colors ${
-                      reviewTab === tab
-                        ? 'text-[#0A84FF] border-b-2 border-[#0A84FF]'
-                        : 'text-[#8e8e93] hover:text-[#1c1c1e] dark:hover:text-[#f5f5f7]'
-                    }`}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === tab ? 'text-[#0A84FF] border-b-2 border-[#0A84FF]' : 'text-gray-500 hover:text-gray-900 dark:hover:text-white'}`}
                   >
                     {tab}
                   </button>
@@ -663,118 +853,160 @@ export default function AnalysisOverlay({ onClose }) {
 
               {/* Tab content */}
               <div className="flex-1 overflow-y-auto">
-                {reviewTab === 'detections' && (
-                  <div className="p-4 space-y-2">
-                    {quoteItems.map((item, idx) => (
-                      <div key={item.name} className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl">
-                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: getColour(item.class_name) }} />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7] truncate">{item.name}</p>
-                          <p className="text-xs text-[#8e8e93]">{Math.round((item.confidence || 0.9) * 100)}% confidence</p>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setQuoteItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(0, it.qty - 1) } : it).filter(it => it.qty > 0))}
-                            className="w-6 h-6 rounded-lg bg-gray-200 dark:bg-zinc-700 flex items-center justify-center text-sm font-bold hover:bg-gray-300 dark:hover:bg-zinc-600"
-                          >−</button>
-                          <span className="w-6 text-center text-sm font-bold tabular-nums">{item.qty}</span>
-                          <button
-                            onClick={() => setQuoteItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: it.qty + 1 } : it))}
-                            className="w-6 h-6 rounded-lg bg-gray-200 dark:bg-zinc-700 flex items-center justify-center text-sm font-bold hover:bg-gray-300 dark:hover:bg-zinc-600"
-                          >+</button>
-                        </div>
-                        <div className="text-right min-w-[60px]">
-                          <p className="text-sm font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">${(item.qty * item.unit_price).toFixed(0)}</p>
-                          <p className="text-xs text-[#8e8e93]">${item.unit_price}/ea</p>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="pt-3 border-t border-gray-100 dark:border-white/10">
-                      <div className="flex justify-between text-sm text-[#8e8e93]">
-                        <span>{quoteItems.length} types, {quoteItems.reduce((s,i)=>s+i.qty,0)} items</span>
-                        <span className="font-bold text-[#1c1c1e] dark:text-[#f5f5f7]">${subtotal.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {reviewTab === 'quote' && (
-                  <div className="p-4 space-y-4">
-                    <div>
-                      <label className="text-xs font-semibold tracking-[0.12em] uppercase text-[#8e8e93] block mb-1.5">Client Name</label>
-                      <input
-                        value={clientName}
-                        onChange={e => setClientName(e.target.value)}
-                        placeholder="Company or client name"
-                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800 text-[#1c1c1e] dark:text-[#f5f5f7] text-sm focus:ring-2 focus:ring-[#0A84FF]/20 focus:border-[#0A84FF] outline-none"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      {quoteItems.map(item => (
-                        <div key={item.name} className="flex justify-between text-sm py-1">
-                          <span className="text-[#8e8e93]">{item.name} × {item.qty}</span>
-                          <span className="font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">${(item.qty * item.unit_price).toFixed(2)}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="pt-3 border-t border-gray-100 dark:border-white/10 space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#8e8e93]">Subtotal</span>
-                        <span className="font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">${subtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-[#8e8e93]">GST (15%)</span>
-                        <span className="font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">${gst.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-base font-bold">
-                        <span className="text-[#1c1c1e] dark:text-[#f5f5f7]">Total NZD</span>
-                        <span className="text-[#0A84FF]">${total.toFixed(2)}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {reviewTab === 'notes' && (
-                  <div className="p-4">
-                    <label className="text-xs font-semibold tracking-[0.12em] uppercase text-[#8e8e93] block mb-2">Internal Notes</label>
-                    <textarea
-                      value={notes}
-                      onChange={e => setNotes(e.target.value)}
-                      placeholder="Notes visible to staff only…"
-                      rows={8}
-                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800 text-[#1c1c1e] dark:text-[#f5f5f7] text-sm focus:ring-2 focus:ring-[#0A84FF]/20 focus:border-[#0A84FF] outline-none resize-none"
-                    />
-                  </div>
-                )}
+                {activeTab === 'Detections' && <DetectionsTab detections={detections} setDetections={setDetections} />}
+                {activeTab === 'Quote' && <QuoteTab detections={detections} />}
+                {activeTab === 'Notes' && <NotesTab notes={notes} setNotes={setNotes} />}
               </div>
 
-              {/* Save actions */}
-              <div className="p-4 border-t border-gray-100 dark:border-white/10 space-y-2">
-                <motion.button
-                  onClick={() => saveQuote(true)}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-3.5 bg-[#0A84FF] hover:bg-[#0070d6] text-white font-bold rounded-xl transition-all"
+              {/* Footer actions */}
+              <div className="p-4 border-t border-gray-200 dark:border-white/10 flex gap-2">
+                <button
+                  onClick={handleSaveDraft}
+                  className="flex-1 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
                 >
-                  Approve & Send Quote
-                </motion.button>
-                <motion.button
-                  onClick={() => saveQuote(false)}
-                  whileHover={{ scale: 1.01 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-3 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-[#1c1c1e] dark:text-[#f5f5f7] font-semibold rounded-xl transition-all text-sm"
+                  Save Draft
+                </button>
+                <button
+                  onClick={handleApproveQuote}
+                  className="flex-1 py-2.5 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0A84FF]/90 transition-colors"
                 >
-                  Save as Draft
-                </motion.button>
+                  Approve &amp; Send
+                </button>
               </div>
             </div>
           </motion.div>
         )}
         </AnimatePresence>
 
-        {/* DONE STATE */}
+        {/* ── EXTRACTING ── */}
+        <AnimatePresence>
+        {state === STATES.EXTRACTING && (
+          <motion.div
+            key="extracting"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex flex-col items-center justify-center gap-6"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-blue-50 dark:bg-blue-950/20 flex items-center justify-center">
+              <FileText size={28} className="text-[#0A84FF]" strokeWidth={1.5} />
+            </div>
+            <div className="text-center">
+              <h3 className="text-xl font-bold tracking-tight mb-2">Reading door schedule...</h3>
+              <p className="text-gray-500 text-sm">AI is extracting door details from your schedule</p>
+            </div>
+            <div className="flex gap-1">
+              {[0,1,2].map(i => (
+                <motion.div
+                  key={i}
+                  className="w-2 h-2 rounded-full bg-[#0A84FF]"
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1, repeat: Infinity, delay: i * 0.2 }}
+                />
+              ))}
+            </div>
+          </motion.div>
+        )}
+        </AnimatePresence>
+
+        {/* ── SCHEDULE REVIEW ── */}
+        <AnimatePresence>
+        {state === STATES.SCHEDULE_REVIEW && (
+          <motion.div
+            key="schedule-review"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex h-full overflow-hidden"
+          >
+            {/* Left: original page for reference */}
+            <div className="flex-1 bg-gray-50 dark:bg-black/20 flex items-center justify-center p-6">
+              {reviewingPage?.dataUrl && (
+                <img src={reviewingPage.dataUrl} className="max-h-full max-w-full object-contain rounded-xl shadow-lg opacity-80" alt="Floor plan page" />
+              )}
+            </div>
+
+            {/* Right: extracted schedule table */}
+            <div className="w-[500px] flex-shrink-0 border-l border-gray-200 dark:border-white/10 flex flex-col bg-white dark:bg-zinc-900">
+              <div className="p-4 border-b border-gray-200 dark:border-white/10">
+                <h3 className="font-semibold">Door Schedule</h3>
+                <p className="text-sm text-gray-500 mt-0.5">{scheduleItems.length} doors extracted — review and edit before adding to quote</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-2">
+                {scheduleItems.map((item, i) => (
+                  <div key={i} className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-sm">{item.mark} — {item.type}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400">Qty:</span>
+                        <input
+                          type="number"
+                          value={item.quantity || 1}
+                          min={1}
+                          onChange={e => updateScheduleItem(i, 'quantity', parseInt(e.target.value))}
+                          className="w-12 text-center text-sm border border-gray-200 dark:border-white/10 rounded-lg py-0.5 bg-transparent"
+                        />
+                        <button onClick={() => removeScheduleItem(i)} className="text-gray-400 hover:text-red-500 transition-colors">
+                          <Trash2 size={14} strokeWidth={1.5} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {[
+                        ['Width', 'width_mm', ['600','700','760','810','860','910']],
+                        ['Height', 'height_mm', ['2040','2100']],
+                        ['Core', 'core', ['Hollow Core','Solid Core','Fire Rated (FD30)']],
+                        ['Finish', 'finish', ['Raw','Primed','Pre-finished White']],
+                        ['Frame', 'frame', ['LJ&P Standard','Rebate Only','No Frame']],
+                        ['Handing', 'handing', ['Left Hand','Right Hand','N/A']],
+                      ].map(([label, field, options]) => (
+                        <div key={field}>
+                          <span className="text-gray-400 block mb-0.5">{label}</span>
+                          <select
+                            value={item[field] || ''}
+                            onChange={e => updateScheduleItem(i, field, e.target.value)}
+                            className="w-full text-xs border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1 bg-white dark:bg-zinc-800"
+                          >
+                            {options.map(o => <option key={o} value={o}>{o}</option>)}
+                            {!options.includes(String(item[field])) && item[field] && (
+                              <option value={item[field]}>{item[field]}</option>
+                            )}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                    {item.notes && <p className="text-xs text-gray-400 italic">{item.notes}</p>}
+                  </div>
+                ))}
+                <button
+                  onClick={addScheduleItem}
+                  className="w-full py-2 rounded-xl border border-dashed border-gray-200 dark:border-white/10 text-sm text-gray-400 hover:text-gray-600 hover:border-gray-300 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Plus size={14} strokeWidth={1.5} /> Add row manually
+                </button>
+              </div>
+
+              <div className="p-4 border-t border-gray-200 dark:border-white/10 flex gap-2">
+                <button
+                  onClick={() => setState(STATES.SELECTING)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={addScheduleToQuote}
+                  className="flex-1 py-2.5 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0A84FF]/90 transition-colors"
+                >
+                  Add to Quote ({scheduleItems.length} doors)
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+        </AnimatePresence>
+
+        {/* ── DONE ── */}
         <AnimatePresence>
         {state === STATES.DONE && (
           <motion.div
@@ -825,7 +1057,11 @@ export default function AnalysisOverlay({ onClose }) {
                   View Quote
                 </motion.button>
                 <motion.button
-                  onClick={() => { setFile(null); setPages([]); setSelectedPages([]); setDetections([]); setLiveDetections([]); setQuoteItems([]); setSavedQuoteId(null); setState(STATES.IDLE) }}
+                  onClick={() => {
+                    setFile(null); setPages([]); setSelectedPages([])
+                    setDetections([]); setLiveDetections([]); setScheduleItems([])
+                    setSavedQuoteId(null); setState(STATES.IDLE)
+                  }}
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.98 }}
                   className="px-6 py-3 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 dark:hover:bg-zinc-700 text-[#1c1c1e] dark:text-[#f5f5f7] font-semibold rounded-xl transition-all"
@@ -837,6 +1073,7 @@ export default function AnalysisOverlay({ onClose }) {
           </motion.div>
         )}
         </AnimatePresence>
+
       </div>
     </motion.div>
   )

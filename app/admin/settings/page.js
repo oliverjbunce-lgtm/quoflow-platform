@@ -505,6 +505,174 @@ function CustomItemsTab() {
   )
 }
 
+// --- PRODUCT MODIFIERS SECTION ---
+function ProductModifiersSection({ product }) {
+  const [modifiers, setModifiers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [editingId, setEditingId] = useState(null)
+  const [editVal, setEditVal] = useState('')
+  const [showAdd, setShowAdd] = useState(false)
+  const [newMod, setNewMod] = useState({ attribute: 'width_mm', value: '', adjustment: '', adjustment_type: 'add' })
+  const [basePrice, setBasePrice] = useState(product.base_price || 0)
+  const [editingBase, setEditingBase] = useState(false)
+  const [basePriceInput, setBasePriceInput] = useState(String(product.base_price || 0))
+
+  useEffect(() => {
+    fetch(`/api/products/${product.id}/modifiers`)
+      .then(r => r.json())
+      .then(d => { setModifiers(d.modifiers || []); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [product.id])
+
+  const groupedMods = modifiers.reduce((acc, m) => {
+    if (!acc[m.attribute]) acc[m.attribute] = []
+    acc[m.attribute].push(m)
+    return acc
+  }, {})
+
+  async function saveModifier(id, adjustment) {
+    await fetch(`/api/products/modifiers/${id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adjustment: parseFloat(adjustment) }),
+    })
+    setModifiers(prev => prev.map(m => m.id === id ? { ...m, adjustment: parseFloat(adjustment) } : m))
+    setEditingId(null)
+  }
+
+  async function deleteModifier(id) {
+    await fetch(`/api/products/modifiers/${id}`, { method: 'DELETE' })
+    setModifiers(prev => prev.filter(m => m.id !== id))
+  }
+
+  async function addModifier() {
+    if (!newMod.value || newMod.adjustment === '') return
+    const res = await fetch(`/api/products/${product.id}/modifiers`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...newMod, adjustment: parseFloat(newMod.adjustment) }),
+    })
+    const data = await res.json()
+    if (data.modifier) setModifiers(prev => [...prev, data.modifier])
+    setNewMod({ attribute: 'width_mm', value: '', adjustment: '', adjustment_type: 'add' })
+    setShowAdd(false)
+  }
+
+  async function saveBasePrice() {
+    const p = parseFloat(basePriceInput) || 0
+    setBasePrice(p)
+    setEditingBase(false)
+    await fetch(`/api/products/${product.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ base_price: p }),
+    }).catch(() => {})
+  }
+
+  const attrLabels = { width_mm: 'Width', height_mm: 'Height', core: 'Core', finish: 'Finish', frame: 'Frame', handing: 'Handing' }
+
+  return (
+    <div className="px-5 py-4 border-t border-gray-100 dark:border-white/5 bg-gray-50/30 dark:bg-white/2">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-semibold uppercase tracking-wide text-[#8e8e93]">Modifier Pricing</span>
+          <span className="text-xs text-[#8e8e93]">Base price:</span>
+          {editingBase ? (
+            <input
+              autoFocus
+              type="number"
+              value={basePriceInput}
+              onChange={e => setBasePriceInput(e.target.value)}
+              onBlur={saveBasePrice}
+              onKeyDown={e => e.key === 'Enter' && saveBasePrice()}
+              className="w-24 px-2 py-0.5 text-sm font-semibold rounded-lg border border-[#0A84FF] bg-white dark:bg-zinc-800 outline-none"
+            />
+          ) : (
+            <button onClick={() => { setEditingBase(true); setBasePriceInput(String(basePrice)) }}
+              className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7] hover:text-[#0A84FF] transition-colors tabular-nums">
+              ${Number(basePrice).toFixed(2)}
+            </button>
+          )}
+        </div>
+        <button onClick={() => setShowAdd(!showAdd)}
+          className="text-xs text-[#0A84FF] hover:text-[#0070d6] font-semibold flex items-center gap-1 transition-colors">
+          <Plus size={12} strokeWidth={2} /> Add modifier
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-xs text-[#8e8e93] py-2">Loading modifiers…</p>
+      ) : (
+        <div className="space-y-3">
+          {Object.entries(groupedMods).map(([attr, mods]) => (
+            <div key={attr}>
+              <p className="text-xs font-semibold text-[#8e8e93] mb-1.5 capitalize">{attrLabels[attr] || attr} modifiers:</p>
+              <div className="flex flex-wrap gap-2">
+                {mods.map(mod => (
+                  <div key={mod.id} className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-white/10 group text-xs">
+                    <span className="font-medium text-[#1c1c1e] dark:text-[#f5f5f7]">{mod.value}</span>
+                    {editingId === mod.id ? (
+                      <input
+                        autoFocus
+                        type="number"
+                        defaultValue={mod.adjustment}
+                        onBlur={e => saveModifier(mod.id, e.target.value)}
+                        onKeyDown={e => e.key === 'Enter' && saveModifier(mod.id, e.target.value)}
+                        className="w-16 px-1 py-0.5 text-xs rounded border border-[#0A84FF] bg-white dark:bg-zinc-700 outline-none text-right"
+                      />
+                    ) : (
+                      <button onClick={() => setEditingId(mod.id)}
+                        className="tabular-nums font-semibold hover:text-[#0A84FF] transition-colors"
+                        style={{ color: mod.adjustment >= 0 ? '#34c759' : '#ff3b30' }}>
+                        {mod.adjustment >= 0 ? '+' : ''}${mod.adjustment}
+                      </button>
+                    )}
+                    <button onClick={() => deleteModifier(mod.id)}
+                      className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all ml-0.5">
+                      <Trash2 size={10} strokeWidth={2} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+
+          {Object.keys(groupedMods).length === 0 && !showAdd && (
+            <p className="text-xs text-[#8e8e93] italic">No modifiers — prices come from variant overrides only.</p>
+          )}
+
+          {showAdd && (
+            <div className="bg-white dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-white/10 p-3 space-y-2">
+              <div className="grid grid-cols-4 gap-2">
+                <div>
+                  <label className="text-xs text-[#8e8e93] block mb-1">Attribute</label>
+                  <select value={newMod.attribute} onChange={e => setNewMod(m => ({ ...m, attribute: e.target.value }))}
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-700 outline-none">
+                    {Object.entries(attrLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-[#8e8e93] block mb-1">Value</label>
+                  <input value={newMod.value} onChange={e => setNewMod(m => ({ ...m, value: e.target.value }))}
+                    placeholder="e.g. 910 or Primed"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-700 outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs text-[#8e8e93] block mb-1">Adjustment ($)</label>
+                  <input type="number" value={newMod.adjustment} onChange={e => setNewMod(m => ({ ...m, adjustment: e.target.value }))}
+                    placeholder="e.g. 30 or -20"
+                    className="w-full px-2 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-700 outline-none" />
+                </div>
+                <div className="flex items-end gap-1">
+                  <button onClick={addModifier} className="flex-1 py-1.5 px-2 rounded-lg bg-[#0A84FF] text-white text-xs font-medium hover:bg-[#0A84FF]/90">Save</button>
+                  <button onClick={() => setShowAdd(false)} className="py-1.5 px-2 rounded-lg border border-gray-200 dark:border-white/10 text-xs hover:bg-gray-50 dark:hover:bg-white/5">✕</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // --- CATALOGUE TAB (main) ---
 function CatalogueTab() {
   const [catalogueTab, setCatalogueTab] = useState('products')
@@ -697,6 +865,7 @@ function CatalogueTab() {
                           )}
                         </div>
                       )}
+                      {isExpanded && <ProductModifiersSection product={product} />}
                     </div>
                   )
                 })}
