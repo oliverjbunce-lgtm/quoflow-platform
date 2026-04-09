@@ -1,6 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ['better-sqlite3'],
   turbopack: {},
   images: {
     remotePatterns: [
@@ -9,5 +8,4 @@ const nextConfig = {
     ],
   },
 }
-
 module.exports = nextConfig
