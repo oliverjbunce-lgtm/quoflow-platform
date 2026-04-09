@@ -5,7 +5,7 @@
   "scripts": {
     "postinstall": "cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf.worker.min.js || cp node_modules/pdfjs-dist/build/pdf.worker.min.js public/pdf.worker.min.js || true",
     "dev": "next dev",
-    "build": "next build",
+    "build": "NEXT_DISABLE_TURBOPACK=1 next build",
     "start": "next start",
     "lint": "next lint"
   },
