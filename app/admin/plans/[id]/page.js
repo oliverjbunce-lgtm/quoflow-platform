@@ -346,8 +346,20 @@ export default function PlanReviewPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen items-center justify-center bg-[#f2f2f7] dark:bg-[#1c1c1e]">
         <div className="w-8 h-8 border-2 border-[#0A84FF] border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!plan) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#f2f2f7] dark:bg-[#1c1c1e] flex-col gap-4">
+        <p className="text-lg font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">Plan not found</p>
+        <button onClick={() => router.push('/admin/plans')}
+          className="px-4 py-2 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0070d6] transition-colors">
+          Back to Plans
+        </button>
       </div>
     )
   }

@@ -294,17 +294,20 @@ export default function AnalysisOverlay({ onClose }) {
 
   // ─── Save to Plans ────────────────────────────────────────────────────────
   async function handleSaveToPlan() {
+    if (!planId) return
     setSavingPlan(true)
-    // Update plan status to in_review
-    await fetch(`/api/plans/${planId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ review_status: 'in_review' }),
-    })
+    try {
+      await fetch(`/api/plans/${planId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ review_status: 'in_review' }),
+      })
+    } catch (e) {
+      console.error('Save to plans patch failed:', e)
+    }
     setSavingPlan(false)
-    // Close overlay and navigate to plan review
     onClose()
-    window.location.href = `/admin/plans/${planId}`
+    router.push(`/admin/plans/${planId}`)
   }
 
   // ─── Canvas drawing ───────────────────────────────────────────────────────
