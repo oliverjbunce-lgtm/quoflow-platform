@@ -27,8 +27,15 @@ const STATES = {
   SELECTING: 'selecting',
   SCANNING: 'scanning',
   REVIEWING: 'reviewing',
+  ERROR: 'error',
   DONE: 'done',
 }
+
+const SCAN_STATUS_PHASES = [
+  { afterSeconds: 0,  message: 'Uploading floor plan to AI model…' },
+  { afterSeconds: 3,  message: 'Rendering PDF page for analysis…' },
+  { afterSeconds: 15, message: 'Running door detection… this typically takes 20–60 seconds' },
+]
 
 function normalise(name) {
   return DETECTION_LABELS[name] || name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
@@ -169,7 +176,6 @@ export default function AnalysisOverlay({ onClose }) {
   const [planId, setPlanId] = useState(null)
   const [scanProgress, setScanProgress] = useState(0)
   const [detections, setDetections] = useState([])
-  const [isMockResult, setIsMockResult] = useState(false)
   const [scanImage, setScanImage] = useState(null)
   const [reviewingPage, setReviewingPage] = useState(null)
   const [analysisId, setAnalysisId] = useState(null)
@@ -262,11 +268,12 @@ export default function AnalysisOverlay({ onClose }) {
     setReviewingPage(pageData || null)
 
     const scanInterval = setInterval(() => {
+      const elapsed = (Date.now() - startTime) / 1000
       setScanProgress(p => {
         if (p >= 85) return p
         return p + (85 - p) * 0.03
       })
-      setScanTime(Math.round((Date.now() - startTime) / 100) / 10)
+      setScanTime(Math.round(elapsed * 10) / 10)
     }, 100)
 
     try {
@@ -278,9 +285,15 @@ export default function AnalysisOverlay({ onClose }) {
           imageBase64: pageData?.thumbnail || '',
         }),
       })
-      const data = await res.json()
       clearInterval(scanInterval)
 
+      if (!res.ok) {
+        console.error('Analysis API returned error:', res.status)
+        setState(STATES.ERROR)
+        return
+      }
+
+      const data = await res.json()
       const dets = data.detections || []
       const flatDets = dets.map(d => ({
         ...d,
@@ -290,13 +303,11 @@ export default function AnalysisOverlay({ onClose }) {
       setDetections(flatDets)
       setAnalysisId(data.analysisId)
       setScanProgress(100)
-      // If mock data, we'll show a warning in REVIEWING state
-      setIsMockResult(data.isMock || false)
       setTimeout(() => setState(STATES.REVIEWING), 600)
     } catch (err) {
       clearInterval(scanInterval)
       console.error('Analysis failed:', err)
-      setState(STATES.IDLE)
+      setState(STATES.ERROR)
     }
   }
 
@@ -457,6 +468,7 @@ export default function AnalysisOverlay({ onClose }) {
             {state === STATES.SELECTING && 'Select Pages'}
             {state === STATES.SCANNING && 'Analysing…'}
             {state === STATES.REVIEWING && 'Review Detections'}
+            {state === STATES.ERROR && 'Analysis Failed'}
             {state === STATES.DONE && 'Saved to Plans'}
           </h2>
         </div>
@@ -680,7 +692,9 @@ export default function AnalysisOverlay({ onClose }) {
               </div>
 
               <div className="flex-1 flex flex-col items-center justify-center p-6 gap-1">
-                <p className="text-sm text-[#8e8e93] text-center">Analysing floor plan…</p>
+                <p className="text-sm text-[#8e8e93] text-center">
+                  {[...SCAN_STATUS_PHASES].reverse().find(p => scanTime >= p.afterSeconds)?.message || SCAN_STATUS_PHASES[0].message}
+                </p>
                 <p className="text-xs text-[#8e8e93] text-center mt-1">{scanTime}s</p>
               </div>
             </motion.div>
@@ -739,11 +753,6 @@ export default function AnalysisOverlay({ onClose }) {
 
               {/* Tab content */}
               <div className="flex-1 overflow-y-auto">
-                {isMockResult && (
-                  <div className="mx-4 mb-3 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
-                    ⚠️ AI model unavailable — showing estimated detections. Try again in a moment.
-                  </div>
-                )}
                 {activeTab === 'Detections' && <DetectionsTab detections={detections} setDetections={setDetections} />}
                 {activeTab === 'Notes' && <NotesTab notes={notes} setNotes={setNotes} />}
               </div>
@@ -763,6 +772,67 @@ export default function AnalysisOverlay({ onClose }) {
                 </button>
                 <p className="text-xs text-center text-gray-400 mt-2">Fill specs and generate quote in Plans</p>
               </div>
+            </div>
+          </motion.div>
+        )}
+        </AnimatePresence>
+
+        {/* ── ERROR ── */}
+        <AnimatePresence>
+        {state === STATES.ERROR && (
+          <motion.div
+            key="error"
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <div className="text-center max-w-sm px-6">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.1 }}
+                className="w-20 h-20 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-6"
+              >
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FF3B30" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+              </motion.div>
+              <motion.h2
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="text-2xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2"
+              >
+                Analysis failed
+              </motion.h2>
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="text-sm text-[#8e8e93] mb-1"
+              >
+                Something went wrong — please try again.
+              </motion.p>
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="text-xs text-[#8e8e93] mb-8"
+              >
+                If this keeps happening, the AI model may be temporarily unavailable.
+              </motion.p>
+              <motion.button
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                onClick={() => setState(STATES.SELECTING)}
+                whileHover={{ scale: 1.01 }}
+                whileTap={{ scale: 0.98 }}
+                className="px-8 py-3 bg-[#0A84FF] text-white font-semibold rounded-xl hover:bg-[#0070d6] transition-colors"
+              >
+                Try Again
+              </motion.button>
             </div>
           </motion.div>
         )}

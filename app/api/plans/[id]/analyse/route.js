@@ -34,11 +34,17 @@ export async function POST(req, { params }) {
         result = await analyseFloorPlanPDF(pdfBuffer, pageNum)
       } catch (fileErr) {
         console.error('Could not read PDF file:', fileErr.message)
-        result = { success: false, detections: [], mock: true }
+        result = { success: false, error: 'Could not read plan file' }
       }
     } else {
       console.warn('No file_path on plan — cannot call HF API')
-      result = { success: false, detections: [], mock: true }
+      result = { success: false, error: 'No plan file found' }
+    }
+
+    // If analysis failed, mark analysis record as failed and return error — no fake data
+    if (!result.success) {
+      await query('UPDATE analyses SET status = ? WHERE id = ?', ['failed', analysisId])
+      return NextResponse.json({ error: 'Analysis failed. Please try again.' }, { status: 500 })
     }
 
     // Store detections
@@ -51,17 +57,13 @@ export async function POST(req, { params }) {
     }
 
     // Update analysis status
-    await query(
-      'UPDATE analyses SET status = ? WHERE id = ?',
-      ['complete', analysisId]
-    )
+    await query('UPDATE analyses SET status = ? WHERE id = ?', ['complete', analysisId])
 
     await query('UPDATE plans SET page_count = ? WHERE id = ?', [pageNums.length, planId])
 
     return NextResponse.json({
       analysisId,
       detections,
-      isMock: result.mock || false,
       count: detections.length,
     })
   } catch (err) {
