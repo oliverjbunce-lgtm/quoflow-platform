@@ -31,9 +31,14 @@ export default function DetectionCard({ det, isSelected, onClick, onUpdate, onDe
           <p className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7] truncate">
             {(det.corrected_class || det.class_name || '').replace(/_/g, ' ')}
           </p>
-          {det.confidence != null && (
-            <p className="text-xs text-gray-400">{Math.round(det.confidence * 100)}% confidence</p>
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {det.confidence != null && (
+              <p className="text-xs text-gray-400">{Math.round(det.confidence * 100)}% confidence</p>
+            )}
+            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-zinc-700 text-gray-500 dark:text-gray-400 leading-none">
+              {det.specs?.location || 'Interior'}
+            </span>
+          </div>
         </div>
         <button
           onClick={(e) => { e.stopPropagation(); onDelete() }}

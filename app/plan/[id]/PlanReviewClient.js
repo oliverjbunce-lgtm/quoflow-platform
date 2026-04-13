@@ -246,10 +246,12 @@ export default function PlanReviewClient() {
         ctx.font = 'bold 11px Inter, -apple-system, sans-serif'
         const textW = ctx.measureText(label).width + 8
         ctx.fillStyle = color
-        ctx.roundRect(sx1, Math.max(0, sy1 - 20), textW, 20, [4, 4, 0, 0])
+        const labelY = sy1 < 22 ? sy1 : sy1 - 20
+        const labelRadius = sy1 < 22 ? [4, 0, 4, 0] : [4, 4, 0, 0]
+        ctx.roundRect(sx1, labelY, textW, 20, labelRadius)
         ctx.fill()
         ctx.fillStyle = '#fff'
-        ctx.fillText(label, sx1 + 4, Math.max(16, sy1) - 4)
+        ctx.fillText(label, sx1 + 4, labelY + 14)
       })
 
       // In-progress draw rectangle
@@ -514,11 +516,18 @@ export default function PlanReviewClient() {
               <canvas
                 ref={canvasRef}
                 className="absolute top-0 left-0 rounded-xl"
-                style={{ cursor: drawMode ? 'crosshair' : 'pointer' }}
+                style={{ cursor: drawMode ? 'crosshair' : 'default' }}
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleCanvasMouseMove}
                 onMouseUp={handleCanvasMouseUp}
               />
+              {drawMode && (
+                <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+                  <div className="px-4 py-2 rounded-full bg-white/90 dark:bg-zinc-900/90 shadow-lg border border-[#0A84FF]/30 text-sm font-medium text-[#0A84FF] whitespace-nowrap backdrop-blur-sm">
+                    ✦ Click and drag to draw a detection box — press Esc to cancel
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -563,13 +572,14 @@ export default function PlanReviewClient() {
               <button
                 onClick={() => setDrawMode((d) => !d)}
                 title={drawMode ? 'Cancel draw' : 'Draw detection box'}
-                className={`p-1.5 rounded-lg transition-colors ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                   drawMode
-                    ? 'bg-[#0A84FF] text-white'
-                    : 'text-gray-400 hover:text-[#0A84FF] hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                    ? 'bg-red-500 text-white hover:bg-red-600'
+                    : 'bg-[#0A84FF] text-white hover:bg-[#0070d6]'
                 }`}
               >
-                <Plus size={16} strokeWidth={1.5} />
+                <Plus size={15} strokeWidth={2} />
+                {drawMode ? 'Cancel' : 'Add Detection'}
               </button>
             </div>
           </div>
