@@ -8,6 +8,7 @@ import StatusBadge from '@/components/StatusBadge'
 import EmptyState from '@/components/EmptyState'
 import AnalysisOverlay from '@/components/AnalysisOverlay'
 import { SkeletonStat, SkeletonRow } from '@/components/SkeletonCard'
+import OnboardingTour from '@/components/OnboardingTour'
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.06 } } }
 const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0, transition: { duration: 0.4 } } }
@@ -36,6 +37,7 @@ export default function DashboardPage() {
   const [quotes, setQuotes] = useState([])
   const [loading, setLoading] = useState(true)
   const [showOverlay, setShowOverlay] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -47,10 +49,21 @@ export default function DashboardPage() {
       setQuotes(quotesData.quotes?.slice(0, 6) || [])
       setLoading(false)
     }).catch(() => setLoading(false))
+
+    fetch('/api/onboarding')
+      .then(r => r.json())
+      .then(data => { if (!data.completed) setShowOnboarding(true) })
+      .catch(() => {})
   }, [])
+
+  async function completeOnboarding() {
+    await fetch('/api/onboarding', { method: 'POST' })
+    setShowOnboarding(false)
+  }
 
   return (
     <>
+      {showOnboarding && <OnboardingTour onComplete={completeOnboarding} />}
       <AnimatePresence>
         {showOverlay && (
           <AnalysisOverlay onClose={() => setShowOverlay(false)} />

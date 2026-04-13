@@ -50,9 +50,18 @@ export async function POST(req, { params }) {
     // Store detections
     const detections = result.detections || []
     for (const det of detections) {
+      const detId = randomUUID()
+      const bbox = det.bbox || null
+      const [bx1, by1, bx2, by2] = Array.isArray(bbox) ? bbox : [null, null, null, null]
       await query(
-        'INSERT INTO detections (id, analysis_id, class_name, confidence, bbox_json) VALUES (?, ?, ?, ?, ?)',
-        [randomUUID(), analysisId, det.class_name, det.confidence || 0.9, JSON.stringify(det.bbox || null)]
+        `INSERT INTO detections (id, analysis_id, class_name, confidence, bbox_json, x1, y1, x2, y2, raw_class, raw_confidence, raw_bbox)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [detId, analysisId, det.class_name, det.confidence || 0.9,
+         JSON.stringify(bbox),
+         bx1, by1, bx2, by2,
+         det.class_name,
+         det.confidence || 0.9,
+         JSON.stringify({ x1: bx1, y1: by1, x2: bx2, y2: by2 })]
       )
     }
 

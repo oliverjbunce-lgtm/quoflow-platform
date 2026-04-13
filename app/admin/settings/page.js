@@ -884,7 +884,7 @@ function CatalogueTab() {
   )
 }
 
-const TABS = ['Company', 'Pricing', 'Notifications', 'Team', 'Catalogue']
+const TABS = ['Company', 'Pricing', 'Notifications', 'Team', 'Catalogue', 'Account']
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState('Company')
@@ -1095,6 +1095,35 @@ export default function SettingsPage() {
       {activeTab === 'Catalogue' && (
         <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl p-6">
           <CatalogueTab />
+        </div>
+      )}
+
+      {/* Account */}
+      {activeTab === 'Account' && (
+        <div className="bg-white/80 dark:bg-zinc-900/70 backdrop-blur-xl border border-white/60 dark:border-white/10 rounded-2xl p-6">
+          <h2 className="font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] mb-2">Account</h2>
+          <p className="text-sm text-[#8e8e93] mb-6">Manage your account preferences.</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between py-4 border-b border-gray-100 dark:border-white/10">
+              <div>
+                <p className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">Onboarding tour</p>
+                <p className="text-xs text-[#8e8e93] mt-0.5">Replay the getting-started walkthrough</p>
+              </div>
+              <button
+                onClick={async () => {
+                  await fetch('/api/onboarding', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ reset: true }),
+                  })
+                  window.location.href = '/admin/dashboard'
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium text-[#1c1c1e] dark:text-[#f5f5f7] hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+              >
+                Restart onboarding tour
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </motion.div>

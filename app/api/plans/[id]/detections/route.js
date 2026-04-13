@@ -25,9 +25,14 @@ export async function POST(req, { params }) {
     }
 
     const detId = randomUUID()
+    const bboxArr = Array.isArray(bbox) ? bbox : []
+    const [bx1, by1, bx2, by2] = bboxArr
     await query(
-      'INSERT INTO detections (id, analysis_id, class_name, confidence, bbox_json, specs_json, is_correction) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [detId, analysisId, class_name, 1.0, JSON.stringify(bbox || []), JSON.stringify(specs || {}), 1]
+      `INSERT INTO detections (id, analysis_id, class_name, confidence, bbox_json, specs_json, is_correction, x1, y1, x2, y2, is_user_added, correction_type, corrected_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'added', ?)`,
+      [detId, analysisId, class_name, 1.0, JSON.stringify(bboxArr), JSON.stringify(specs || {}), 1,
+       bx1 ?? null, by1 ?? null, bx2 ?? null, by2 ?? null,
+       new Date().toISOString()]
     )
 
     return NextResponse.json({ id: detId })
