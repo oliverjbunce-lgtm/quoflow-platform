@@ -4,7 +4,22 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useDropzone } from 'react-dropzone'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, ScanLine, Trash2 } from 'lucide-react'
-import { DETECTION_COLOURS, DETECTION_LABELS, DEFAULT_UNIT_PRICES } from '@/lib/mockData'
+import { DETECTION_LABELS, DEFAULT_UNIT_PRICES } from '@/lib/mockData'
+
+const DETECTION_COLOURS = {
+  L_prehung_door: '#0A84FF',
+  R_prehung_door: '#0A84FF',
+  Double_prehung_door: '#FF9F0A',
+  S_cavity_slider: '#30D158',
+  Double_cavity_slider: '#30D158',
+  Bi_folding_door: '#BF5AF2',
+  Double_bifold_door: '#BF5AF2',
+  Wardrobe_sliding_two_doors_1: '#FF375F',
+  Wardrobe_sliding_three_doors: '#FF375F',
+  Barn_wall_slider: '#64D2FF',
+  Exterior_door: '#FF6B00',
+  Other: '#8E8E93',
+}
 
 const STATES = {
   IDLE: 'idle',
@@ -154,7 +169,7 @@ export default function AnalysisOverlay({ onClose }) {
   const [planId, setPlanId] = useState(null)
   const [scanProgress, setScanProgress] = useState(0)
   const [detections, setDetections] = useState([])
-  const [liveDetections, setLiveDetections] = useState([])
+  const [isMockResult, setIsMockResult] = useState(false)
   const [scanImage, setScanImage] = useState(null)
   const [reviewingPage, setReviewingPage] = useState(null)
   const [analysisId, setAnalysisId] = useState(null)
@@ -240,7 +255,6 @@ export default function AnalysisOverlay({ onClose }) {
     if (!selectedPages.length) return
     setState(STATES.SCANNING)
     setScanProgress(0)
-    setLiveDetections([])
     const startTime = Date.now()
 
     const pageData = pages.find(p => selectedPages.includes(p.pageNum))
@@ -249,8 +263,8 @@ export default function AnalysisOverlay({ onClose }) {
 
     const scanInterval = setInterval(() => {
       setScanProgress(p => {
-        if (p >= 95) return p
-        return p + (95 - p) * 0.04
+        if (p >= 85) return p
+        return p + (85 - p) * 0.03
       })
       setScanTime(Math.round((Date.now() - startTime) / 100) / 10)
     }, 100)
@@ -275,16 +289,10 @@ export default function AnalysisOverlay({ onClose }) {
       }))
       setDetections(flatDets)
       setAnalysisId(data.analysisId)
-
-      for (let i = 0; i < dets.length; i++) {
-        await new Promise(r => setTimeout(r, 200 + Math.random() * 300))
-        setLiveDetections(prev => [...prev, dets[i]])
-        setScanProgress(50 + (i / dets.length) * 50)
-      }
-
       setScanProgress(100)
-      setScanTime(Math.round((Date.now() - startTime) / 100) / 10)
-      setTimeout(() => setState(STATES.REVIEWING), 1000)
+      // If mock data, we'll show a warning in REVIEWING state
+      setIsMockResult(data.isMock || false)
+      setTimeout(() => setState(STATES.REVIEWING), 600)
     } catch (err) {
       clearInterval(scanInterval)
       console.error('Analysis failed:', err)
@@ -403,14 +411,6 @@ export default function AnalysisOverlay({ onClose }) {
     ro.observe(img)
     return () => ro.disconnect()
   }, [detections, reviewingPage, state])
-
-  // ─── Live detections grouping (scan state) ────────────────────────────────
-  const liveGrouped = {}
-  liveDetections.forEach(d => {
-    const label = normalise(d.class_name)
-    if (!liveGrouped[label]) liveGrouped[label] = { label, class_name: d.class_name, count: 0 }
-    liveGrouped[label].count++
-  })
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
@@ -670,13 +670,7 @@ export default function AnalysisOverlay({ onClose }) {
               className="w-80 border-l border-gray-200/50 dark:border-white/10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl flex flex-col"
             >
               <div className="p-5 border-b border-gray-100 dark:border-white/10">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold tracking-[0.12em] uppercase text-[#8e8e93]">Live Detections</p>
-                  <motion.span className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7] tabular-nums" key={liveDetections.length}>
-                    {liveDetections.length}
-                  </motion.span>
-                </div>
-                <div className="mt-3 h-1.5 bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden">
+                <div className="mt-1 h-1.5 bg-gray-100 dark:bg-zinc-700 rounded-full overflow-hidden">
                   <motion.div
                     className="h-full bg-[#0A84FF] rounded-full"
                     animate={{ width: `${scanProgress}%` }}
@@ -685,41 +679,10 @@ export default function AnalysisOverlay({ onClose }) {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-4 space-y-2">
-                <AnimatePresence>
-                  {Object.values(liveGrouped).map(({ label, class_name, count }) => (
-                    <motion.div
-                      key={label}
-                      initial={{ opacity: 0, scale: 0.9, y: 8 }}
-                      animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-zinc-800 rounded-xl"
-                    >
-                      <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: getColour(class_name) }} />
-                      <span className="flex-1 text-sm font-medium text-[#1c1c1e] dark:text-[#f5f5f7] truncate">{label}</span>
-                      <span className="text-lg font-bold tabular-nums text-[#1c1c1e] dark:text-[#f5f5f7]">{count}</span>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+              <div className="flex-1 flex flex-col items-center justify-center p-6 gap-1">
+                <p className="text-sm text-[#8e8e93] text-center">Analysing floor plan…</p>
+                <p className="text-xs text-[#8e8e93] text-center mt-1">{scanTime}s</p>
               </div>
-
-              {scanProgress === 100 && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-5 border-t border-gray-100 dark:border-white/10"
-                >
-                  <div className="flex items-center gap-2 text-[#34c759]">
-                    <div className="w-6 h-6 rounded-full bg-[#34c759] flex items-center justify-center">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    </div>
-                    <p className="font-bold text-sm">Analysis complete</p>
-                  </div>
-                  <p className="text-xs text-[#8e8e93] mt-1">{liveDetections.length} components · {scanTime}s</p>
-                </motion.div>
-              )}
             </motion.div>
           </motion.div>
         )}
@@ -776,6 +739,11 @@ export default function AnalysisOverlay({ onClose }) {
 
               {/* Tab content */}
               <div className="flex-1 overflow-y-auto">
+                {isMockResult && (
+                  <div className="mx-4 mb-3 mt-3 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                    ⚠️ AI model unavailable — showing estimated detections. Try again in a moment.
+                  </div>
+                )}
                 {activeTab === 'Detections' && <DetectionsTab detections={detections} setDetections={setDetections} />}
                 {activeTab === 'Notes' && <NotesTab notes={notes} setNotes={setNotes} />}
               </div>
@@ -845,7 +813,7 @@ export default function AnalysisOverlay({ onClose }) {
                 <motion.button
                   onClick={() => {
                     setFile(null); setPages([]); setSelectedPages([])
-                    setDetections([]); setLiveDetections([])
+                    setDetections([])
                     setState(STATES.IDLE)
                   }}
                   whileHover={{ scale: 1.01 }}

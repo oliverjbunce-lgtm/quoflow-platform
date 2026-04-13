@@ -12,14 +12,18 @@ export async function GET(req, { params }) {
     const plan = planResult.rows[0]
     if (!plan) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Get all non-deleted detections for this plan
+    // Get non-deleted detections from the most recent analysis only
     const detResult = await query(`
       SELECT d.*, a.page_num
       FROM detections d
       JOIN analyses a ON d.analysis_id = a.id
-      WHERE a.plan_id = ? AND (d.deleted IS NULL OR d.deleted = 0)
+      WHERE a.plan_id = ?
+        AND (d.deleted IS NULL OR d.deleted = 0)
+        AND a.id = (
+          SELECT id FROM analyses WHERE plan_id = ? ORDER BY rowid DESC LIMIT 1
+        )
       ORDER BY a.page_num, d.rowid
-    `, [id])
+    `, [id, id])
 
     return NextResponse.json({ plan, detections: detResult.rows })
   } catch (err) {
