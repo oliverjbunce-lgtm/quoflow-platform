@@ -170,7 +170,7 @@ export default function AnalysisOverlay({ onClose }) {
   const [state, setState] = useState(STATES.IDLE)
   const [file, setFile] = useState(null)
   const [pages, setPages] = useState([])
-  const [selectedPage, setSelectedPage] = useState(null)
+  const [selectedPages, setSelectedPages] = useState([])
   const [previewPage, setPreviewPage] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [planId, setPlanId] = useState(null)
@@ -184,6 +184,7 @@ export default function AnalysisOverlay({ onClose }) {
   const [scanTime, setScanTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [savingPlan, setSavingPlan] = useState(false)
+  const [multiPageProgress, setMultiPageProgress] = useState({ current: 0, total: 0 })
 
   // Pan/zoom state (for SELECTING preview)
   const [previewZoom, setPreviewZoom] = useState(1)
@@ -255,7 +256,7 @@ export default function AnalysisOverlay({ onClose }) {
       const renderedPages = await pagesPromise
       setPages(renderedPages)
       setPreviewPage(renderedPages[0])
-      setSelectedPage(renderedPages[0]?.pageNum || 1)
+      setSelectedPages([renderedPages[0]?.pageNum || 1])
 
       setTimeout(() => setState(STATES.SELECTING), 300)
     } catch (err) {
@@ -275,55 +276,65 @@ export default function AnalysisOverlay({ onClose }) {
 
   // ─── Analysis ────────────────────────────────────────────────────────────
   async function startAnalysis() {
-    if (!selectedPage) return
+    if (!selectedPages.length) return
     setState(STATES.SCANNING)
     setScanProgress(0)
+    setMultiPageProgress({ current: 0, total: selectedPages.length })
     const startTime = Date.now()
-
-    const pageData = pages.find(p => p.pageNum === selectedPage)
-    setScanImage(pageData?.thumbnail || null)
-    setReviewingPage(pageData || null)
+    const allDetections = []
+    let lastAnalysisId = null
 
     const scanInterval = setInterval(() => {
-      const elapsed = (Date.now() - startTime) / 1000
       setScanProgress(p => {
         if (p >= 85) return p
         return p + (85 - p) * 0.03
       })
-      setScanTime(Math.round(elapsed * 10) / 10)
+      setScanTime(Math.round((Date.now() - startTime) / 100) / 10)
     }, 100)
 
     try {
-      const res = await fetch(`/api/plans/${planId}/analyse`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pageNums: [selectedPage],
-          imageBase64: pageData?.thumbnail || '',
-        }),
-      })
-      clearInterval(scanInterval)
+      for (let i = 0; i < selectedPages.length; i++) {
+        const pageNum = selectedPages[i]
+        setMultiPageProgress({ current: i + 1, total: selectedPages.length })
+        const pageData = pages.find(p => p.pageNum === pageNum)
+        if (i === 0) {
+          setScanImage(pageData?.thumbnail || null)
+          setReviewingPage(pageData || null)
+        }
 
-      if (!res.ok) {
-        console.error('Analysis API returned error:', res.status)
-        setState(STATES.ERROR)
-        return
+        const res = await fetch(`/api/plans/${planId}/analyse`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            pageNums: [pageNum],
+            imageBase64: pageData?.thumbnail || '',
+          }),
+        })
+
+        if (!res.ok) {
+          clearInterval(scanInterval)
+          setState(STATES.ERROR)
+          return
+        }
+
+        const data = await res.json()
+        lastAnalysisId = data.analysisId
+        allDetections.push(...(data.detections || []))
+        setScanProgress(((i + 1) / selectedPages.length) * 85)
       }
 
-      const data = await res.json()
-      const dets = data.detections || []
-      const flatDets = dets.map(d => ({
+      clearInterval(scanInterval)
+      const flatDets = allDetections.map(d => ({
         ...d,
         qty: 1,
         unit_price: getUnitPrice(d.class_name),
       }))
       setDetections(flatDets)
-      setAnalysisId(data.analysisId)
+      setAnalysisId(lastAnalysisId)
       setScanProgress(100)
       setTimeout(() => setState(STATES.REVIEWING), 600)
     } catch (err) {
       clearInterval(scanInterval)
-      console.error('Analysis failed:', err)
       setState(STATES.ERROR)
     }
   }
@@ -723,15 +734,18 @@ export default function AnalysisOverlay({ onClose }) {
 
               <div className="flex gap-3 overflow-x-auto pb-2 mb-4">
                 {pages.map(page => {
-                  const isSelected = selectedPage === page.pageNum
+                  const isSelected = selectedPages.includes(page.pageNum)
                   return (
                     <button
                       key={page.pageNum}
                       onClick={() => {
-                        setSelectedPage(page.pageNum)
                         setPreviewPage(page)
-                        setPreviewZoom(1)
-                        setPreviewPan({ x: 0, y: 0 })
+                        setPreviewZoom(1); setPreviewPan({ x: 0, y: 0 })
+                        setSelectedPages(prev =>
+                          prev.includes(page.pageNum)
+                            ? prev.filter(n => n !== page.pageNum)
+                            : [...prev, page.pageNum]
+                        )
                       }}
                       className={`relative flex-shrink-0 w-24 h-32 rounded-xl overflow-hidden transition-all ${
                         isSelected
@@ -771,12 +785,12 @@ export default function AnalysisOverlay({ onClose }) {
 
               {/* Analyse button */}
               <button
-                disabled={!selectedPage}
+                disabled={!selectedPages.length}
                 onClick={startAnalysis}
                 className="w-full py-3 bg-[#0A84FF] text-white rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <ScanLine size={18} strokeWidth={1.5} />
-                Analyse Page {selectedPage}
+                Analyse {selectedPages.length > 0 ? `${selectedPages.length} Page${selectedPages.length > 1 ? 's' : ''}` : 'Floor Plan'}
               </button>
             </div>
           </motion.div>
@@ -833,6 +847,11 @@ export default function AnalysisOverlay({ onClose }) {
                 <p className="text-sm text-[#8e8e93] text-center">
                   {[...SCAN_STATUS_PHASES].reverse().find(p => scanTime >= p.afterSeconds)?.message || SCAN_STATUS_PHASES[0].message}
                 </p>
+                {multiPageProgress.total > 1 && (
+                  <p className="text-xs text-[#8e8e93] text-center mt-0.5">
+                    Page {multiPageProgress.current} of {multiPageProgress.total}
+                  </p>
+                )}
                 <p className="text-xs text-[#8e8e93] text-center mt-1">{scanTime}s</p>
               </div>
             </motion.div>

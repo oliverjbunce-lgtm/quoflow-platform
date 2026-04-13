@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Trash2, ChevronRight, CheckCircle, Plus } from 'lucide-react'
+import { ArrowLeft, Trash2, ChevronRight, CheckCircle, Plus, Eye, EyeOff } from 'lucide-react'
 
 import { getColour } from './components/constants'
 import DetectionCard from './components/DetectionCard'
@@ -22,6 +22,9 @@ export default function PlanReviewClient() {
   const [generateLoading, setGenerateLoading] = useState(false)
   const [showClientModal, setShowClientModal] = useState(false)
   const [clients, setClients] = useState([])
+
+  // Annotations toggle
+  const [showAnnotations, setShowAnnotations] = useState(true)
 
   // Draw mode state
   const [drawMode, setDrawMode] = useState(false)
@@ -194,6 +197,10 @@ export default function PlanReviewClient() {
       const ctx = canvas.getContext('2d')
       ctx.clearRect(0, 0, contentW, contentH)
 
+      if (!showAnnotations) {
+        return
+      }
+
       // Polyfill roundRect for older browsers
       if (!ctx.roundRect) {
         ctx.roundRect = function (x, y, w, h, r) {
@@ -289,7 +296,7 @@ export default function PlanReviewClient() {
     const ro = new ResizeObserver(draw)
     ro.observe(img)
     return () => ro.disconnect()
-  }, [detections, currentPage, pages, selectedDetId, drawRect])
+  }, [detections, currentPage, pages, selectedDetId, drawRect, showAnnotations])
 
   // ── Pan/zoom handlers ─────────────────────────────────────────────────────
 
@@ -642,6 +649,22 @@ export default function PlanReviewClient() {
                 </div>
               )}
 
+              {/* Annotations toggle button */}
+              <button
+                onClick={() => setShowAnnotations(a => !a)}
+                className={`absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold shadow-md transition-all ${
+                  showAnnotations
+                    ? 'bg-[#0A84FF] text-white'
+                    : 'bg-white text-[#1c1c1e] border border-gray-200'
+                }`}
+              >
+                {showAnnotations ? (
+                  <><Eye size={12} strokeWidth={1.5} /> Annotations</>
+                ) : (
+                  <><EyeOff size={12} strokeWidth={1.5} /> Hidden</>
+                )}
+              </button>
+
               {/* Zoom indicator */}
               <div
                 style={{
@@ -673,23 +696,31 @@ export default function PlanReviewClient() {
         {/* Page filmstrip */}
         {pages.length > 1 && (
           <div className="flex gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-white/10 overflow-x-auto">
-            {pages.map((page) => (
-              <button
-                key={page.pageNum}
-                onClick={() => setCurrentPage(page.pageNum)}
-                className={`flex-shrink-0 w-16 h-20 rounded-xl overflow-hidden border-2 transition-all ${
-                  page.pageNum === currentPage
-                    ? 'border-[#0A84FF] shadow-md'
-                    : 'border-gray-200 dark:border-white/10 hover:border-gray-400'
-                }`}
-              >
-                <img
-                  src={page.dataUrl}
-                  className="w-full h-full object-cover"
-                  alt={`Page ${page.pageNum}`}
-                />
-              </button>
-            ))}
+            {pages.map((page) => {
+              const pageDetCount = detections.filter(d => (d.page_num || 1) === page.pageNum).length
+              return (
+                <button
+                  key={page.pageNum}
+                  onClick={() => setCurrentPage(page.pageNum)}
+                  className={`relative flex-shrink-0 w-16 h-20 rounded-xl overflow-hidden border-2 transition-all ${
+                    page.pageNum === currentPage
+                      ? 'border-[#0A84FF] shadow-md'
+                      : 'border-gray-200 dark:border-white/10 hover:border-gray-400'
+                  }`}
+                >
+                  <img
+                    src={page.dataUrl}
+                    className="w-full h-full object-cover"
+                    alt={`Page ${page.pageNum}`}
+                  />
+                  {pageDetCount > 0 && (
+                    <div className="absolute top-1 left-1 bg-[#0A84FF] text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shadow">
+                      {pageDetCount}
+                    </div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
