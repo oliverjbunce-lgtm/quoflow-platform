@@ -1,30 +1,18 @@
 'use client'
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Trash2, ChevronRight, CheckCircle, Plus } from 'lucide-react'
 
-const DOOR_TYPES = [
-  'L_prehung_door', 'R_prehung_door', 'Double_prehung_door',
-  'S_cavity_slider', 'Double_cavity_slider',
-  'Bi_folding_door', 'Double_bifold_door',
-  'Wardrobe_sliding_two_doors_1', 'Wardrobe_sliding_three_doors',
-  'Barn_wall_slider', 'Exterior_door', 'Other',
-]
+import { getColour } from './components/constants'
+import DetectionCard from './components/DetectionCard'
+import AddDetectionModal from './components/AddDetectionModal'
+import ClientModal from './components/ClientModal'
 
-const DETECTION_COLOURS = {
-  L_prehung_door: '#0A84FF', R_prehung_door: '#0A84FF',
-  Double_prehung_door: '#FF9F0A', S_cavity_slider: '#30D158',
-  Double_cavity_slider: '#30D158', Bi_folding_door: '#BF5AF2',
-  Double_bifold_door: '#BF5AF2', Wardrobe_sliding_two_doors_1: '#FF375F',
-  Wardrobe_sliding_three_doors: '#FF375F', Barn_wall_slider: '#64D2FF',
-  Exterior_door: '#FF6B00', Other: '#8E8E93',
-}
-
-function getColour(name) { return DETECTION_COLOURS[name] || '#8E8E93' }
-
-export default function PlanReviewPage() {
+export default function PlanReviewClient() {
   const { id: planId } = useParams()
   const router = useRouter()
+
   const [plan, setPlan] = useState(null)
   const [detections, setDetections] = useState([])
   const [loading, setLoading] = useState(true)
@@ -37,37 +25,47 @@ export default function PlanReviewPage() {
 
   // Draw mode state
   const [drawMode, setDrawMode] = useState(false)
-  const [drawRect, setDrawRect] = useState(null) // {x1,y1,x2,y2} in canvas pixels while dragging
+  const [drawRect, setDrawRect] = useState(null)
   const [drawStart, setDrawStart] = useState(null)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [pendingBbox, setPendingBbox] = useState(null) // normalised [x1,y1,x2,y2]
+  const [pendingBbox, setPendingBbox] = useState(null)
 
   const canvasRef = useRef(null)
   const imageRef = useRef(null)
   const saveTimers = useRef({})
 
-  // Load plan + detections
+  // ── Data loading ──────────────────────────────────────────────────────────
+
   useEffect(() => {
+    if (!planId) return
     fetch(`/api/plans/${planId}`)
-      .then(r => r.json())
-      .then(d => {
+      .then((r) => r.json())
+      .then((d) => {
         setPlan(d.plan)
-        setDetections((d.detections || []).map(det => ({
-          ...det,
-          specs: (() => { try { return JSON.parse(det.specs_json || '{}') } catch { return {} } })(),
-          bbox: (() => { try { return JSON.parse(det.bbox_json || 'null') } catch { return null } })(),
-        })))
+        setDetections(
+          (d.detections || []).map((det) => ({
+            ...det,
+            specs: (() => {
+              try { return JSON.parse(det.specs_json || '{}') } catch { return {} }
+            })(),
+            bbox: (() => {
+              try { return JSON.parse(det.bbox_json || 'null') } catch { return null }
+            })(),
+          }))
+        )
         setLoading(false)
       })
       .catch(() => setLoading(false))
   }, [planId])
 
-  // Load clients
   useEffect(() => {
-    fetch('/api/clients').then(r => r.json()).then(d => setClients(d.clients || []))
+    fetch('/api/clients')
+      .then((r) => r.json())
+      .then((d) => setClients(d.clients || []))
   }, [])
 
-  // Render PDF pages
+  // ── PDF rendering ─────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!planId) return
     async function loadPDF() {
@@ -94,7 +92,64 @@ export default function PlanReviewPage() {
     loadPDF()
   }, [planId])
 
-  // Draw detection boxes on canvas
+  // ── Detection mutations ───────────────────────────────────────────────────
+  // Defined BEFORE any useEffect that references them to avoid TDZ errors.
+
+  const updateDetection = useCallback(
+    (detId, changes) => {
+      setDetections((prev) =>
+        prev.map((d) => (d.id === detId ? { ...d, ...changes } : d))
+      )
+      if (saveTimers.current[detId]) clearTimeout(saveTimers.current[detId])
+      saveTimers.current[detId] = setTimeout(async () => {
+        const payload = {}
+        if (changes.corrected_class !== undefined) payload.corrected_class = changes.corrected_class
+        if (changes.specs !== undefined) payload.specs_json = changes.specs
+        if (changes.deleted !== undefined) payload.deleted = changes.deleted ? 1 : 0
+        if (Object.keys(payload).length > 0) {
+          await fetch(`/api/plans/${planId}/detections/${detId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        }
+      }, 500)
+    },
+    [planId]
+  )
+
+  const deleteDetection = useCallback(
+    (detId) => {
+      setDetections((prev) => prev.filter((d) => d.id !== detId))
+      fetch(`/api/plans/${planId}/detections/${detId}`, { method: 'DELETE' })
+    },
+    [planId]
+  )
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  // Placed AFTER deleteDetection to avoid TDZ.
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDetId) {
+        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
+        deleteDetection(selectedDetId)
+        setSelectedDetId(null)
+        return
+      }
+      if (e.key === 'Escape') {
+        setDrawMode(false)
+        setDrawRect(null)
+        setDrawStart(null)
+        setSelectedDetId(null)
+      }
+    }
+    window.addEventListener('keydown', handleKey)
+    return () => window.removeEventListener('keydown', handleKey)
+  }, [selectedDetId, deleteDetection])
+
+  // ── Canvas drawing ────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!canvasRef.current || !imageRef.current || !pages.length) return
     const img = imageRef.current
@@ -107,7 +162,7 @@ export default function PlanReviewPage() {
       const elementH = img.clientHeight
       if (!elementW || !elementH) return
 
-      // object-contain: find the actual rendered content size
+      // object-contain: compute actual rendered content size
       const naturalAspect = naturalW / naturalH
       const elementAspect = elementW / elementH
       let contentW, contentH
@@ -123,44 +178,56 @@ export default function PlanReviewPage() {
       canvas.height = contentH
       canvas.style.width = contentW + 'px'
       canvas.style.height = contentH + 'px'
-      canvas.style.left = ((elementW - contentW) / 2) + 'px'
-      canvas.style.top = ((elementH - contentH) / 2) + 'px'
+      canvas.style.left = (elementW - contentW) / 2 + 'px'
+      canvas.style.top = (elementH - contentH) / 2 + 'px'
 
       const ctx = canvas.getContext('2d')
       ctx.clearRect(0, 0, contentW, contentH)
 
+      // Polyfill roundRect for older browsers
       if (!ctx.roundRect) {
-        ctx.roundRect = function(x, y, w, h, r) {
-          const rad = Array.isArray(r) ? r[0] : (r || 0)
+        ctx.roundRect = function (x, y, w, h, r) {
+          const rad = Array.isArray(r) ? r[0] : r || 0
           ctx.beginPath()
-          ctx.moveTo(x + rad, y); ctx.lineTo(x + w - rad, y)
+          ctx.moveTo(x + rad, y)
+          ctx.lineTo(x + w - rad, y)
           ctx.quadraticCurveTo(x + w, y, x + w, y + rad)
           ctx.lineTo(x + w, y + h - rad)
           ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h)
-          ctx.lineTo(x + rad, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - rad)
-          ctx.lineTo(x, y + rad); ctx.quadraticCurveTo(x, y, x + rad, y)
+          ctx.lineTo(x + rad, y + h)
+          ctx.quadraticCurveTo(x, y + h, x, y + h - rad)
+          ctx.lineTo(x, y + rad)
+          ctx.quadraticCurveTo(x, y, x + rad, y)
           ctx.closePath()
         }
       }
 
       const scaleX = contentW / naturalW
       const scaleY = contentH / naturalH
-      const pageDetections = detections.filter(d => (d.page_num || 1) === currentPage)
+      const pageDetections = detections.filter((d) => (d.page_num || 1) === currentPage)
 
-      pageDetections.forEach(det => {
+      pageDetections.forEach((det) => {
         const rawBbox = det.bbox
         if (!rawBbox) return
         let x1, y1, x2, y2
-        if (Array.isArray(rawBbox)) { [x1, y1, x2, y2] = rawBbox }
-        else if (typeof rawBbox === 'object') { x1 = rawBbox.x1; y1 = rawBbox.y1; x2 = rawBbox.x2; y2 = rawBbox.y2 }
-        else return
+        if (Array.isArray(rawBbox)) {
+          ;[x1, y1, x2, y2] = rawBbox
+        } else if (typeof rawBbox === 'object') {
+          x1 = rawBbox.x1; y1 = rawBbox.y1; x2 = rawBbox.x2; y2 = rawBbox.y2
+        } else {
+          return
+        }
         if (x1 == null) return
-        // Normalised 0-1 coords → pixel coords in natural image space
+
+        // Normalised 0-1 → natural image pixel space
         if (x1 <= 1 && y1 <= 1 && x2 <= 1 && y2 <= 1) {
           x1 *= naturalW; y1 *= naturalH; x2 *= naturalW; y2 *= naturalH
         }
-        const sx1 = x1 * scaleX, sy1 = y1 * scaleY
-        const sw = (x2 - x1) * scaleX, sh = (y2 - y1) * scaleY
+
+        const sx1 = x1 * scaleX
+        const sy1 = y1 * scaleY
+        const sw = (x2 - x1) * scaleX
+        const sh = (y2 - y1) * scaleY
         if (sw <= 0 || sh <= 0) return
 
         const color = getColour(det.corrected_class || det.class_name)
@@ -185,7 +252,7 @@ export default function PlanReviewPage() {
         ctx.fillText(label, sx1 + 4, Math.max(16, sy1) - 4)
       })
 
-      // Draw in-progress rectangle
+      // In-progress draw rectangle
       if (drawRect) {
         const { x1, y1, x2, y2 } = drawRect
         ctx.strokeStyle = '#0A84FF'
@@ -211,125 +278,156 @@ export default function PlanReviewPage() {
     return () => ro.disconnect()
   }, [detections, currentPage, pages, selectedDetId, drawRect])
 
-  // Mouse handlers
-  const handleCanvasMouseDown = useCallback((e) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+  // ── Canvas mouse handlers ─────────────────────────────────────────────────
 
-    if (drawMode) {
-      setDrawStart({ x, y })
-      setDrawRect({ x1: x, y1: y, x2: x, y2: y })
-    } else {
-      // Click-to-select: find detection whose bbox contains this point
-      const normX = x / canvas.width
-      const normY = y / canvas.height
-      const pageDetections = detections.filter(d => (d.page_num || 1) === currentPage)
+  const handleCanvasMouseDown = useCallback(
+    (e) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
 
-      let found = null
-      let minArea = Infinity
-      for (const det of pageDetections) {
-        const bbox = det.bbox
-        if (!bbox) continue
-        let [bx1, by1, bx2, by2] = Array.isArray(bbox) ? bbox : [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
-        // Already normalised (0-1 range)
-        if (normX >= bx1 && normX <= bx2 && normY >= by1 && normY <= by2) {
-          const area = (bx2 - bx1) * (by2 - by1)
-          if (area < minArea) { minArea = area; found = det }
+      if (drawMode) {
+        setDrawStart({ x, y })
+        setDrawRect({ x1: x, y1: y, x2: x, y2: y })
+      } else {
+        // Click-to-select: find smallest bbox containing the click point
+        const normX = x / canvas.width
+        const normY = y / canvas.height
+        const pageDetections = detections.filter((d) => (d.page_num || 1) === currentPage)
+
+        let found = null
+        let minArea = Infinity
+        for (const det of pageDetections) {
+          const bbox = det.bbox
+          if (!bbox) continue
+          const [bx1, by1, bx2, by2] = Array.isArray(bbox)
+            ? bbox
+            : [bbox.x1, bbox.y1, bbox.x2, bbox.y2]
+          if (normX >= bx1 && normX <= bx2 && normY >= by1 && normY <= by2) {
+            const area = (bx2 - bx1) * (by2 - by1)
+            if (area < minArea) { minArea = area; found = det }
+          }
         }
+        if (found) setSelectedDetId(found.id)
       }
-      if (found) setSelectedDetId(found.id)
-    }
-  }, [drawMode, detections, currentPage])
+    },
+    [drawMode, detections, currentPage]
+  )
 
-  const handleCanvasMouseMove = useCallback((e) => {
-    if (!drawMode || !drawStart) return
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    setDrawRect({ x1: drawStart.x, y1: drawStart.y, x2: x, y2: y })
-  }, [drawMode, drawStart])
+  const handleCanvasMouseMove = useCallback(
+    (e) => {
+      if (!drawMode || !drawStart) return
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
+      setDrawRect({ x1: drawStart.x, y1: drawStart.y, x2: x, y2: y })
+    },
+    [drawMode, drawStart]
+  )
 
-  const handleCanvasMouseUp = useCallback((e) => {
-    if (!drawMode || !drawStart) return
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+  const handleCanvasMouseUp = useCallback(
+    (e) => {
+      if (!drawMode || !drawStart) return
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const x = e.clientX - rect.left
+      const y = e.clientY - rect.top
 
-    const pixX1 = Math.min(drawStart.x, x)
-    const pixY1 = Math.min(drawStart.y, y)
-    const pixX2 = Math.max(drawStart.x, x)
-    const pixY2 = Math.max(drawStart.y, y)
+      const pixX1 = Math.min(drawStart.x, x)
+      const pixY1 = Math.min(drawStart.y, y)
+      const pixX2 = Math.max(drawStart.x, x)
+      const pixY2 = Math.max(drawStart.y, y)
 
-    // Too small = accidental click, ignore
-    if ((pixX2 - pixX1) < 8 || (pixY2 - pixY1) < 8) {
+      // Too small = accidental click
+      if (pixX2 - pixX1 < 8 || pixY2 - pixY1 < 8) {
+        setDrawStart(null)
+        setDrawRect(null)
+        return
+      }
+
+      // Normalise to 0-1
+      const normBbox = [
+        pixX1 / canvas.width,
+        pixY1 / canvas.height,
+        pixX2 / canvas.width,
+        pixY2 / canvas.height,
+      ]
+
       setDrawStart(null)
       setDrawRect(null)
-      return
-    }
+      setPendingBbox(normBbox)
+      setShowAddModal(true)
+    },
+    [drawMode, drawStart]
+  )
 
-    // Normalise to 0-1
-    const normBbox = [
-      pixX1 / canvas.width,
-      pixY1 / canvas.height,
-      pixX2 / canvas.width,
-      pixY2 / canvas.height,
-    ]
+  // ── API actions ───────────────────────────────────────────────────────────
 
-    setDrawStart(null)
-    setDrawRect(null)
-    setPendingBbox(normBbox)
-    setShowAddModal(true)
-  }, [drawMode, drawStart])
+  const handleAddDetection = useCallback(
+    async (type) => {
+      if (!pendingBbox) return
+      const res = await fetch(`/api/plans/${planId}/detections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          class_name: type,
+          bbox: pendingBbox,
+          page_num: currentPage,
+        }),
+      })
+      const data = await res.json()
+      setDetections((prev) => [
+        ...prev,
+        {
+          id: data.id,
+          class_name: type,
+          confidence: 1.0,
+          bbox: pendingBbox,
+          page_num: currentPage,
+          specs: {},
+        },
+      ])
+      setShowAddModal(false)
+      setPendingBbox(null)
+      setDrawMode(false)
+    },
+    [planId, pendingBbox, currentPage]
+  )
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKey = (e) => {
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedDetId) {
-        // Don't fire when typing in inputs
-        if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return
-        deleteDetection(selectedDetId)
-        setSelectedDetId(null)
-      }
-      if (e.key === 'Escape') {
-        setDrawMode(false)
-        setDrawRect(null)
-        setDrawStart(null)
-        setSelectedDetId(null)
-      }
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [selectedDetId, deleteDetection])
+  const handleAssignClient = useCallback(
+    async (client) => {
+      await fetch(`/api/plans/${planId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_id: client.id,
+          client_name: client.name,
+          client_company: client.company,
+        }),
+      })
+      setPlan((p) => ({ ...p, client_name: client.name, client_company: client.company }))
+      setShowClientModal(false)
+    },
+    [planId]
+  )
 
-  const updateDetection = useCallback((detId, changes) => {
-    setDetections(prev => prev.map(d => d.id === detId ? { ...d, ...changes } : d))
-    if (saveTimers.current[detId]) clearTimeout(saveTimers.current[detId])
-    saveTimers.current[detId] = setTimeout(async () => {
-      const payload = {}
-      if (changes.corrected_class !== undefined) payload.corrected_class = changes.corrected_class
-      if (changes.specs !== undefined) payload.specs_json = changes.specs
-      if (changes.deleted !== undefined) payload.deleted = changes.deleted ? 1 : 0
-      if (Object.keys(payload).length > 0) {
-        await fetch(`/api/plans/${planId}/detections/${detId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-      }
-    }, 500)
-  }, [planId])
-
-  const deleteDetection = useCallback((detId) => {
-    setDetections(prev => prev.filter(d => d.id !== detId))
-    fetch(`/api/plans/${planId}/detections/${detId}`, { method: 'DELETE' })
-  }, [planId])
+  const handleAddNewClient = useCallback(
+    async ({ name, company }) => {
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, company }),
+      })
+      const data = await res.json()
+      await handleAssignClient({ id: data.id, name, company })
+    },
+    [handleAssignClient]
+  )
 
   const generateQuote = async () => {
     setGenerateLoading(true)
@@ -343,6 +441,8 @@ export default function PlanReviewPage() {
     if (data.quoteId) router.push(`/admin/quotes/${data.quoteId}`)
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#f2f2f7] dark:bg-[#1c1c1e]">
@@ -355,16 +455,18 @@ export default function PlanReviewPage() {
     return (
       <div className="flex h-screen items-center justify-center bg-[#f2f2f7] dark:bg-[#1c1c1e] flex-col gap-4">
         <p className="text-lg font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">Plan not found</p>
-        <button onClick={() => router.push('/admin/plans')}
-          className="px-4 py-2 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0070d6] transition-colors">
+        <button
+          onClick={() => router.push('/admin/plans')}
+          className="px-4 py-2 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0070d6] transition-colors"
+        >
           Back to Plans
         </button>
       </div>
     )
   }
 
-  const currentPageData = pages.find(p => p.pageNum === currentPage)
-  const pageDetections = detections.filter(d => (d.page_num || 1) === currentPage)
+  const currentPageData = pages.find((p) => p.pageNum === currentPage)
+  const pageDetections = detections.filter((d) => (d.page_num || 1) === currentPage)
   const totalDetections = detections.length
 
   return (
@@ -374,8 +476,10 @@ export default function PlanReviewPage() {
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top bar */}
         <div className="flex items-center gap-3 px-4 py-3 bg-white dark:bg-zinc-900 border-b border-gray-200 dark:border-white/10">
-          <button onClick={() => router.push('/admin/plans')}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#0A84FF] transition-colors">
+          <button
+            onClick={() => router.push('/admin/plans')}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-[#0A84FF] transition-colors"
+          >
             <ArrowLeft size={16} strokeWidth={1.5} /> Plans
           </button>
           <span className="text-gray-300 dark:text-white/20">/</span>
@@ -387,8 +491,10 @@ export default function PlanReviewPage() {
               {plan.client_name}
             </span>
           ) : (
-            <button onClick={() => setShowClientModal(true)}
-              className="text-xs text-[#0A84FF] bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors">
+            <button
+              onClick={() => setShowClientModal(true)}
+              className="text-xs text-[#0A84FF] bg-blue-50 dark:bg-blue-950/30 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors"
+            >
               Assign Client
             </button>
           )}
@@ -408,11 +514,7 @@ export default function PlanReviewPage() {
               <canvas
                 ref={canvasRef}
                 className="absolute top-0 left-0 rounded-xl"
-                style={{
-                  cursor: drawMode ? 'crosshair' : 'pointer',
-                  width: '100%',
-                  height: '100%',
-                }}
+                style={{ cursor: drawMode ? 'crosshair' : 'pointer' }}
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleCanvasMouseMove}
                 onMouseUp={handleCanvasMouseUp}
@@ -429,8 +531,9 @@ export default function PlanReviewPage() {
         {/* Page filmstrip */}
         {pages.length > 1 && (
           <div className="flex gap-2 px-4 py-3 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-white/10 overflow-x-auto">
-            {pages.map(page => (
-              <button key={page.pageNum}
+            {pages.map((page) => (
+              <button
+                key={page.pageNum}
                 onClick={() => setCurrentPage(page.pageNum)}
                 className={`flex-shrink-0 w-16 h-20 rounded-xl overflow-hidden border-2 transition-all ${
                   page.pageNum === currentPage
@@ -438,7 +541,11 @@ export default function PlanReviewPage() {
                     : 'border-gray-200 dark:border-white/10 hover:border-gray-400'
                 }`}
               >
-                <img src={page.dataUrl} className="w-full h-full object-cover" alt={`Page ${page.pageNum}`} />
+                <img
+                  src={page.dataUrl}
+                  className="w-full h-full object-cover"
+                  alt={`Page ${page.pageNum}`}
+                />
               </button>
             ))}
           </div>
@@ -454,9 +561,13 @@ export default function PlanReviewPage() {
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-400 tabular-nums">{totalDetections} total</span>
               <button
-                onClick={() => setDrawMode(d => !d)}
+                onClick={() => setDrawMode((d) => !d)}
                 title={drawMode ? 'Cancel draw' : 'Draw detection box'}
-                className={`p-1.5 rounded-lg transition-colors ${drawMode ? 'bg-[#0A84FF] text-white' : 'text-gray-400 hover:text-[#0A84FF] hover:bg-blue-50 dark:hover:bg-blue-950/30'}`}
+                className={`p-1.5 rounded-lg transition-colors ${
+                  drawMode
+                    ? 'bg-[#0A84FF] text-white'
+                    : 'text-gray-400 hover:text-[#0A84FF] hover:bg-blue-50 dark:hover:bg-blue-950/30'
+                }`}
               >
                 <Plus size={16} strokeWidth={1.5} />
               </button>
@@ -477,41 +588,44 @@ export default function PlanReviewPage() {
 
           {pages.length > 1 && detections.length > 0 && (
             <div className="px-4 pt-3 pb-1">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Page {currentPage}</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Page {currentPage}
+              </p>
             </div>
           )}
 
-          {/* Draw mode banner */}
           {drawMode && (
             <div className="mx-3 mb-2 mt-2 px-3 py-2 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-[#0A84FF]/30 text-xs text-[#0A84FF] font-medium">
               Draw mode — drag a box on the floor plan
             </div>
           )}
 
-          <>
-            {pageDetections.map((det) => (
-              <DetectionCard
-                key={det.id}
-                det={det}
-                isSelected={det.id === selectedDetId}
-                onClick={() => setSelectedDetId(det.id === selectedDetId ? null : det.id)}
-                onUpdate={changes => updateDetection(det.id, changes)}
-                onDelete={() => deleteDetection(det.id)}
-              />
-            ))}
-          </>
+          {pageDetections.map((det) => (
+            <DetectionCard
+              key={det.id}
+              det={det}
+              isSelected={det.id === selectedDetId}
+              onClick={() => setSelectedDetId(det.id === selectedDetId ? null : det.id)}
+              onUpdate={(changes) => updateDetection(det.id, changes)}
+              onDelete={() => deleteDetection(det.id)}
+            />
+          ))}
 
-          {pages.length > 1 && detections.filter(d => (d.page_num || 1) !== currentPage).length > 0 && (
-            <div className="px-4 pt-4 pb-1">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Other pages</p>
-              <p className="text-xs text-gray-400 mt-0.5">
-                {detections.filter(d => (d.page_num || 1) !== currentPage).length} components on other pages
-              </p>
-            </div>
-          )}
+          {pages.length > 1 &&
+            detections.filter((d) => (d.page_num || 1) !== currentPage).length > 0 && (
+              <div className="px-4 pt-4 pb-1">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  Other pages
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {detections.filter((d) => (d.page_num || 1) !== currentPage).length} components
+                  on other pages
+                </p>
+              </div>
+            )}
         </div>
 
-        {/* Footer: Generate Quote */}
+        {/* Footer */}
         <div className="p-4 border-t border-gray-100 dark:border-white/5 space-y-2">
           <div className="flex justify-between text-sm text-gray-500 mb-2">
             <span>{totalDetections} components ready</span>
@@ -533,295 +647,27 @@ export default function PlanReviewPage() {
         </div>
       </div>
 
-      {/* Client assignment modal */}
+      {/* Client modal */}
       {showClientModal && (
         <ClientModal
           clients={clients}
-          onSelect={async (client) => {
-            await fetch(`/api/plans/${planId}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ client_id: client.id, client_name: client.name, client_company: client.company }),
-            })
-            setPlan(p => ({ ...p, client_name: client.name, client_company: client.company }))
-            setShowClientModal(false)
-          }}
+          onAssign={handleAssignClient}
+          onAddNew={handleAddNewClient}
           onClose={() => setShowClientModal(false)}
         />
       )}
 
-      {/* Add Detection Modal */}
+      {/* Add detection modal */}
       {showAddModal && (
         <AddDetectionModal
-          bbox={pendingBbox}
-          pageNum={currentPage}
-          planId={planId}
-          onSave={(newDet) => {
-            setDetections(prev => [...prev, newDet])
-            setShowAddModal(false)
-            setPendingBbox(null)
-            setDrawMode(false)
-          }}
+          position={pendingBbox}
+          onAdd={handleAddDetection}
           onClose={() => {
             setShowAddModal(false)
             setPendingBbox(null)
           }}
         />
       )}
-    </div>
-  )
-}
-
-// ─── Detection Card ────────────────────────────────────────────────────────────
-function DetectionCard({ det, isSelected, onClick, onUpdate, onDelete }) {
-  const color = getColour(det.corrected_class || det.class_name)
-  const specs = det.specs || {}
-
-  return (
-    <div className={`mx-3 my-1.5 rounded-xl border transition-all cursor-pointer ${
-        isSelected
-          ? 'border-[#0A84FF] bg-blue-50/50 dark:bg-blue-950/20 shadow-md'
-          : 'border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800/50 hover:border-gray-300'
-      }`}
-    >
-      {/* Header row */}
-      <div className="flex items-center gap-2.5 p-3" onClick={onClick}>
-        <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7] truncate">
-            {(det.corrected_class || det.class_name || '').replace(/_/g, ' ')}
-          </p>
-          {det.confidence != null && (
-            <p className="text-xs text-gray-400">{Math.round(det.confidence * 100)}% confidence</p>
-          )}
-        </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="p-1 text-gray-400 hover:text-red-500 transition-colors"
-        >
-          <Trash2 size={14} strokeWidth={1.5} />
-        </button>
-        <ChevronRight
-          size={14}
-          className={`text-gray-400 transition-transform ${isSelected ? 'rotate-90' : ''}`}
-          strokeWidth={1.5}
-        />
-      </div>
-
-      {/* Expanded spec fields */}
-      <>
-        {isSelected && (
-          <div className="overflow-hidden border-t border-gray-100 dark:border-white/5"
-          >
-            <div className="p-3 space-y-3">
-              {/* Door type */}
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Door Type</label>
-                <select
-                  value={det.corrected_class || det.class_name || ''}
-                  onChange={e => onUpdate({ corrected_class: e.target.value })}
-                  onClick={e => e.stopPropagation()}
-                  className="w-full text-sm border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 bg-white dark:bg-zinc-800 text-[#1c1c1e] dark:text-[#f5f5f7]"
-                >
-                  {DOOR_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-                </select>
-              </div>
-
-              {/* Interior/Exterior */}
-              <div>
-                <label className="text-xs text-gray-400 block mb-1">Location</label>
-                <div className="flex gap-2">
-                  {['Interior', 'Exterior'].map(loc => (
-                    <button
-                      key={loc}
-                      onClick={e => { e.stopPropagation(); onUpdate({ specs: { ...specs, location: loc } }) }}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${
-                        (specs.location || 'Interior') === loc
-                          ? 'bg-[#0A84FF] text-white'
-                          : 'bg-gray-100 dark:bg-zinc-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
-                      }`}
-                    >
-                      {loc}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Spec grid */}
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  ['Width (mm)', 'width_mm', ['600','700','760','810','860','910','Custom']],
-                  ['Height (mm)', 'height_mm', ['2040','2100','Custom']],
-                  ['Core', 'core', ['Hollow Core','Solid Core','Fire Rated (FD30)']],
-                  ['Finish', 'finish', ['Raw','Primed','Pre-finished White']],
-                  ['Frame', 'frame', ['LJ&P Standard','Rebate Only','No Frame']],
-                  ['Handing', 'handing', ['Left Hand','Right Hand','N/A']],
-                ].map(([label, field, options]) => (
-                  <div key={field}>
-                    <label className="text-xs text-gray-400 block mb-1">{label}</label>
-                    <select
-                      value={specs[field] || ''}
-                      onChange={e => { e.stopPropagation(); onUpdate({ specs: { ...specs, [field]: e.target.value } }) }}
-                      onClick={e => e.stopPropagation()}
-                      className="w-full text-xs border border-gray-200 dark:border-white/10 rounded-lg px-2 py-1.5 bg-white dark:bg-zinc-800"
-                    >
-                      <option value="">— select —</option>
-                      {options.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-
-              {/* Delete button */}
-              <button
-                onClick={e => { e.stopPropagation(); onDelete() }}
-                className="w-full py-1.5 rounded-lg text-xs font-medium text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors flex items-center justify-center gap-1.5"
-              >
-                <Trash2 size={12} strokeWidth={1.5} /> Remove detection
-              </button>
-            </div>
-          </div>
-        )}
-      </>
-    </div>
-  )
-}
-
-// ─── Add Detection Modal ───────────────────────────────────────────────────────
-function AddDetectionModal({ bbox, pageNum, planId, onSave, onClose }) {
-  const [selected, setSelected] = useState('')
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    if (!selected) return
-    setSaving(true)
-    const res = await fetch(`/api/plans/${planId}/detections`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ class_name: selected, bbox, page_num: pageNum }),
-    })
-    const data = await res.json()
-    onSave({
-      id: data.id,
-      class_name: selected,
-      confidence: 1.0,
-      bbox,
-      page_num: pageNum,
-      specs: {},
-    })
-    setSaving(false)
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-80 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 dark:border-white/5">
-          <h3 className="font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">Select Door Type</h3>
-          <p className="text-xs text-gray-400 mt-0.5">Choose the type for this detection</p>
-        </div>
-        <div className="p-3 max-h-72 overflow-y-auto space-y-1">
-          {DOOR_TYPES.map(t => (
-            <button
-              key={t}
-              onClick={() => setSelected(t)}
-              className={`w-full text-left px-3 py-2 rounded-xl text-sm transition-colors ${
-                selected === t
-                  ? 'bg-[#0A84FF] text-white font-medium'
-                  : 'text-[#1c1c1e] dark:text-[#f5f5f7] hover:bg-gray-100 dark:hover:bg-white/5'
-              }`}
-            >
-              {t.replace(/_/g, ' ')}
-            </button>
-          ))}
-        </div>
-        <div className="p-4 border-t border-gray-100 dark:border-white/5 flex gap-2">
-          <button onClick={onClose} className="flex-1 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 transition-colors">
-            Cancel
-          </button>
-          <button
-            onClick={save}
-            disabled={!selected || saving}
-            className="flex-1 py-2 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0070d6] disabled:opacity-40 transition-colors"
-          >
-            {saving ? 'Saving…' : 'Add Detection'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Client Modal ─────────────────────────────────────────────────────────────
-function ClientModal({ clients, onSelect, onClose }) {
-  const [search, setSearch] = useState('')
-  const [newName, setNewName] = useState('')
-  const [newCompany, setNewCompany] = useState('')
-  const [adding, setAdding] = useState(false)
-
-  const filtered = clients.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.company || '').toLowerCase().includes(search.toLowerCase())
-  )
-
-  const handleAddNew = async () => {
-    if (!newName.trim()) return
-    setAdding(true)
-    const res = await fetch('/api/clients', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newName, company: newCompany }),
-    })
-    const data = await res.json()
-    onSelect({ id: data.id, name: newName, company: newCompany })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl w-96 overflow-hidden">
-        <div className="p-4 border-b border-gray-100 dark:border-white/5">
-          <h3 className="font-semibold">Assign Client</h3>
-          <input
-            placeholder="Search clients…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="mt-2 w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm bg-transparent focus:outline-none focus:border-[#0A84FF]"
-          />
-        </div>
-        <div className="max-h-60 overflow-y-auto">
-          {filtered.map(c => (
-            <button key={c.id} onClick={() => onSelect(c)}
-              className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors border-b border-gray-50 dark:border-white/5">
-              <p className="text-sm font-medium">{c.name}</p>
-              {c.company && <p className="text-xs text-gray-400">{c.company}</p>}
-            </button>
-          ))}
-        </div>
-        <div className="p-4 border-t border-gray-100 dark:border-white/5 space-y-2">
-          <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Add new client</p>
-          <input
-            placeholder="Name"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm bg-transparent focus:outline-none focus:border-[#0A84FF]"
-          />
-          <input
-            placeholder="Company (optional)"
-            value={newCompany}
-            onChange={e => setNewCompany(e.target.value)}
-            className="w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm bg-transparent focus:outline-none focus:border-[#0A84FF]"
-          />
-          <div className="flex gap-2">
-            <button onClick={onClose}
-              className="flex-1 py-2 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-medium hover:bg-gray-50 transition-colors">
-              Cancel
-            </button>
-            <button onClick={handleAddNew} disabled={!newName.trim() || adding}
-              className="flex-1 py-2 rounded-xl bg-[#0A84FF] text-white text-sm font-medium hover:bg-[#0070d6] disabled:opacity-40 transition-colors">
-              {adding ? 'Adding…' : 'Add & Assign'}
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }
