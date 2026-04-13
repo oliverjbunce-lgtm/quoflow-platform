@@ -248,6 +248,7 @@ export default function PlanReviewClient() {
         ctx.fillStyle = color
         const labelY = sy1 < 22 ? sy1 : sy1 - 20
         const labelRadius = sy1 < 22 ? [4, 0, 4, 0] : [4, 4, 0, 0]
+        ctx.beginPath()
         ctx.roundRect(sx1, labelY, textW, 20, labelRadius)
         ctx.fill()
         ctx.fillStyle = '#fff'
