@@ -170,7 +170,7 @@ export default function AnalysisOverlay({ onClose }) {
   const [state, setState] = useState(STATES.IDLE)
   const [file, setFile] = useState(null)
   const [pages, setPages] = useState([])
-  const [selectedPages, setSelectedPages] = useState([])
+  const [selectedPage, setSelectedPage] = useState(null)
   const [previewPage, setPreviewPage] = useState(null)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [planId, setPlanId] = useState(null)
@@ -184,6 +184,13 @@ export default function AnalysisOverlay({ onClose }) {
   const [scanTime, setScanTime] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [savingPlan, setSavingPlan] = useState(false)
+
+  // Pan/zoom state (for SELECTING preview)
+  const [previewZoom, setPreviewZoom] = useState(1)
+  const [previewPan, setPreviewPan] = useState({ x: 0, y: 0 })
+  const [isPreviewPanning, setIsPreviewPanning] = useState(false)
+  const previewPanStart = useRef(null)
+  const previewContainerRef = useRef(null)
 
   // Pan/zoom state (for REVIEWING)
   const [zoom, setZoom] = useState(1)
@@ -248,7 +255,7 @@ export default function AnalysisOverlay({ onClose }) {
       const renderedPages = await pagesPromise
       setPages(renderedPages)
       setPreviewPage(renderedPages[0])
-      setSelectedPages([renderedPages[0]?.pageNum || 1])
+      setSelectedPage(renderedPages[0]?.pageNum || 1)
 
       setTimeout(() => setState(STATES.SELECTING), 300)
     } catch (err) {
@@ -268,12 +275,12 @@ export default function AnalysisOverlay({ onClose }) {
 
   // ─── Analysis ────────────────────────────────────────────────────────────
   async function startAnalysis() {
-    if (!selectedPages.length) return
+    if (!selectedPage) return
     setState(STATES.SCANNING)
     setScanProgress(0)
     const startTime = Date.now()
 
-    const pageData = pages.find(p => selectedPages.includes(p.pageNum))
+    const pageData = pages.find(p => p.pageNum === selectedPage)
     setScanImage(pageData?.thumbnail || null)
     setReviewingPage(pageData || null)
 
@@ -291,7 +298,7 @@ export default function AnalysisOverlay({ onClose }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pageNums: selectedPages,
+          pageNums: [selectedPage],
           imageBase64: pageData?.thumbnail || '',
         }),
       })
@@ -650,41 +657,86 @@ export default function AnalysisOverlay({ onClose }) {
             exit={{ opacity: 0 }}
             className="absolute inset-0 flex flex-col"
           >
-            {/* Large preview */}
+            {/* Large preview with pan+zoom */}
             <div className="flex-1 flex items-center justify-center p-6 min-h-0">
-              {previewPage?.thumbnail ? (
-                <img
-                  src={previewPage.thumbnail}
-                  alt={`Page ${previewPage.pageNum}`}
-                  className="max-h-full max-w-full object-contain rounded-2xl shadow-xl"
-                />
-              ) : (
-                <div className="w-full max-w-lg h-80 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center">
-                  <p className="text-[#8e8e93]">Page {previewPage?.pageNum}</p>
+              <div
+                ref={previewContainerRef}
+                className="relative overflow-hidden w-full h-full bg-gray-50 dark:bg-zinc-900 rounded-2xl"
+                style={{ cursor: isPreviewPanning ? 'grabbing' : 'grab' }}
+                onWheel={(e) => {
+                  e.preventDefault()
+                  const delta = e.deltaY > 0 ? 0.85 : 1.18
+                  setPreviewZoom(z => Math.min(6, Math.max(0.5, z * delta)))
+                }}
+                onMouseDown={(e) => {
+                  setIsPreviewPanning(true)
+                  previewPanStart.current = { x: e.clientX - previewPan.x, y: e.clientY - previewPan.y }
+                }}
+                onMouseMove={(e) => {
+                  if (!isPreviewPanning) return
+                  setPreviewPan({ x: e.clientX - previewPanStart.current.x, y: e.clientY - previewPanStart.current.y })
+                }}
+                onMouseUp={() => setIsPreviewPanning(false)}
+                onMouseLeave={() => setIsPreviewPanning(false)}
+                onDoubleClick={() => { setPreviewZoom(1); setPreviewPan({ x: 0, y: 0 }) }}
+              >
+                <div style={{
+                  transform: `scale(${previewZoom}) translate(${previewPan.x / previewZoom}px, ${previewPan.y / previewZoom}px)`,
+                  transformOrigin: 'center center',
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  {previewPage?.thumbnail ? (
+                    <img
+                      src={previewPage.thumbnail}
+                      alt={`Page ${previewPage.pageNum}`}
+                      className="max-h-full max-w-full object-contain rounded-xl shadow-xl select-none"
+                      draggable={false}
+                    />
+                  ) : (
+                    <div className="w-full max-w-lg h-80 bg-gray-100 dark:bg-zinc-800 rounded-2xl flex items-center justify-center">
+                      <p className="text-[#8e8e93]">Page {previewPage?.pageNum}</p>
+                    </div>
+                  )}
                 </div>
-              )}
+                {/* Zoom hint */}
+                <div className="absolute bottom-2 right-2 text-[10px] text-[#8e8e93] bg-white/80 dark:bg-zinc-800/80 rounded px-2 py-0.5 pointer-events-none">
+                  {previewZoom === 1 ? 'Scroll to zoom · drag to pan' : `${Math.round(previewZoom * 100)}%`}
+                </div>
+              </div>
             </div>
 
             {/* Filmstrip + action buttons */}
             <div className="border-t border-gray-200/50 dark:border-white/10 bg-white/60 dark:bg-zinc-900/60 backdrop-blur-xl px-6 py-4">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-[#1c1c1e] dark:text-[#f5f5f7]">
+                  Select floor plan page
+                </p>
+                <p className="text-xs text-[#8e8e93]">
+                  {pages.length} page{pages.length !== 1 ? 's' : ''} · scroll to see all
+                </p>
+              </div>
+
               <div className="flex gap-3 overflow-x-auto pb-2 mb-4">
                 {pages.map(page => {
-                  const isSelected = selectedPages.includes(page.pageNum)
+                  const isSelected = selectedPage === page.pageNum
                   return (
-                    <motion.button
+                    <button
                       key={page.pageNum}
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
                       onClick={() => {
+                        setSelectedPage(page.pageNum)
                         setPreviewPage(page)
-                        setSelectedPages(prev =>
-                          prev.includes(page.pageNum)
-                            ? prev.filter(n => n !== page.pageNum)
-                            : [...prev, page.pageNum]
-                        )
+                        setPreviewZoom(1)
+                        setPreviewPan({ x: 0, y: 0 })
                       }}
-                      className={`relative flex-shrink-0 w-24 h-32 rounded-xl overflow-hidden border-2 transition-all ${
-                        isSelected ? 'border-[#0A84FF] shadow-lg shadow-[#0A84FF]/20' : 'border-gray-200 dark:border-white/10'
+                      className={`relative flex-shrink-0 w-24 h-32 rounded-xl overflow-hidden transition-all ${
+                        isSelected
+                          ? 'ring-4 ring-[#0A84FF] ring-offset-2 shadow-xl shadow-[#0A84FF]/30'
+                          : 'opacity-60 hover:opacity-100 border border-gray-200'
                       }`}
                     >
                       {page.thumbnail ? (
@@ -695,30 +747,36 @@ export default function AnalysisOverlay({ onClose }) {
                         </div>
                       )}
                       {isSelected && (
-                        <div className="absolute inset-0 bg-[#0A84FF]/10 flex items-center justify-center">
-                          <div className="w-6 h-6 rounded-full bg-[#0A84FF] flex items-center justify-center">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3">
+                        <>
+                          <div className="absolute inset-0 bg-[#0A84FF]/15" />
+                          <div className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-[#0A84FF] flex items-center justify-center shadow">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
                               <polyline points="20 6 9 17 4 12"/>
                             </svg>
                           </div>
+                          <div className="absolute bottom-0 left-0 right-0 bg-[#0A84FF] text-white text-center text-[10px] font-semibold py-0.5">
+                            SELECTED
+                          </div>
+                        </>
+                      )}
+                      {!isSelected && (
+                        <div className="absolute bottom-1 left-0 right-0 text-center">
+                          <span className="text-xs bg-black/40 text-white px-1.5 py-0.5 rounded">P{page.pageNum}</span>
                         </div>
                       )}
-                      <div className="absolute bottom-1 left-0 right-0 text-center">
-                        <span className="text-xs bg-black/50 text-white px-1.5 py-0.5 rounded">P{page.pageNum}</span>
-                      </div>
-                    </motion.button>
+                    </button>
                   )
                 })}
               </div>
 
-              {/* Single action button */}
+              {/* Analyse button */}
               <button
-                disabled={selectedPages.length === 0}
+                disabled={!selectedPage}
                 onClick={startAnalysis}
-                className="w-full py-3 bg-[#0A84FF] text-white rounded-xl font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full py-3 bg-[#0A84FF] text-white rounded-xl font-semibold disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <ScanLine size={18} strokeWidth={1.5} />
-                Detect Components {selectedPages.length > 0 ? `(${selectedPages.length} page${selectedPages.length > 1 ? 's' : ''})` : ''}
+                Analyse Page {selectedPage}
               </button>
             </div>
           </motion.div>
@@ -1016,7 +1074,7 @@ export default function AnalysisOverlay({ onClose }) {
                 </motion.button>
                 <motion.button
                   onClick={() => {
-                    setFile(null); setPages([]); setSelectedPages([])
+                    setFile(null); setPages([]); setSelectedPage(null)
                     setDetections([])
                     setState(STATES.IDLE)
                   }}
