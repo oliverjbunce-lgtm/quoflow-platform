@@ -185,8 +185,18 @@ export default function AnalysisOverlay({ onClose }) {
   const [isDragging, setIsDragging] = useState(false)
   const [savingPlan, setSavingPlan] = useState(false)
 
+  // Pan/zoom state (for REVIEWING)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false)
+
   const canvasRef = useRef(null)
   const imageRef = useRef(null)
+  const reviewContainerRef = useRef(null)
+  const panStart = useRef(null)
+  const lastTouchDist = useRef(null)
+  const zoomIndicatorTimer = useRef(null)
   const router = useRouter()
 
   // ─── PDF rendering ───────────────────────────────────────────────────────
@@ -328,6 +338,76 @@ export default function AnalysisOverlay({ onClose }) {
     onClose()
     window.location.href = `/plan/${planId}`
   }
+
+  // ─── Pan/zoom handlers ────────────────────────────────────────────────────
+  const showZoomBadge = useCallback(() => {
+    setShowZoomIndicator(true)
+    if (zoomIndicatorTimer.current) clearTimeout(zoomIndicatorTimer.current)
+    zoomIndicatorTimer.current = setTimeout(() => setShowZoomIndicator(false), 1500)
+  }, [])
+
+  const handleWheel = useCallback((e) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? 0.9 : 1.1
+    setZoom(z => Math.min(5, Math.max(0.5, z * delta)))
+    showZoomBadge()
+  }, [showZoomBadge])
+
+  const handlePanMouseDown = useCallback((e) => {
+    setIsPanning(true)
+    panStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
+  }, [pan])
+
+  const handlePanMouseMove = useCallback((e) => {
+    if (!isPanning) return
+    setPan({ x: e.clientX - panStart.current.x, y: e.clientY - panStart.current.y })
+  }, [isPanning])
+
+  const handlePanMouseUp = useCallback(() => setIsPanning(false), [])
+
+  const handleDoubleClick = useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+    showZoomBadge()
+  }, [showZoomBadge])
+
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastTouchDist.current = Math.hypot(dx, dy)
+    } else if (e.touches.length === 1) {
+      setIsPanning(true)
+      panStart.current = { x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y }
+    }
+  }, [pan])
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length === 2 && lastTouchDist.current) {
+      e.preventDefault()
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.hypot(dx, dy)
+      setZoom(z => Math.min(5, Math.max(0.5, z * (dist / lastTouchDist.current))))
+      lastTouchDist.current = dist
+      showZoomBadge()
+    } else if (e.touches.length === 1 && isPanning) {
+      setPan({ x: e.touches[0].clientX - panStart.current.x, y: e.touches[0].clientY - panStart.current.y })
+    }
+  }, [isPanning, showZoomBadge])
+
+  const handleTouchEnd = useCallback(() => {
+    lastTouchDist.current = null
+    setIsPanning(false)
+  }, [])
+
+  // Reset zoom when entering review state
+  useEffect(() => {
+    if (state === STATES.REVIEWING) {
+      setZoom(1)
+      setPan({ x: 0, y: 0 })
+    }
+  }, [state])
 
   // ─── Canvas drawing ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -712,27 +792,81 @@ export default function AnalysisOverlay({ onClose }) {
             exit={{ opacity: 0 }}
             className="absolute inset-0 flex h-full overflow-hidden"
           >
-            {/* LEFT: Annotated floor plan */}
-            <div className="flex-1 relative bg-gray-50 dark:bg-black/20 flex items-center justify-center p-6 overflow-hidden">
+            {/* LEFT: Annotated floor plan — pan/zoom */}
+            <div
+              ref={reviewContainerRef}
+              className="flex-1 relative overflow-hidden"
+              style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+              onWheel={handleWheel}
+              onMouseDown={handlePanMouseDown}
+              onMouseMove={handlePanMouseMove}
+              onMouseUp={handlePanMouseUp}
+              onMouseLeave={handlePanMouseUp}
+              onDoubleClick={handleDoubleClick}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            >
+              {/* Re-analyse button — fixed, outside transform */}
               <button
                 onClick={() => setState(STATES.SELECTING)}
-                className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors z-10"
+                className="absolute top-4 left-4 flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:hover:text-white transition-colors z-10 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-sm px-2 py-1 rounded-lg"
               >
                 <ArrowLeft size={16} strokeWidth={1.5} /> Re-analyse
               </button>
-              <div className="relative max-w-full max-h-full">
-                <img
-                  ref={imageRef}
-                  src={reviewingPage?.dataUrl || scanImage}
-                  className="max-w-full max-h-full object-contain rounded-xl shadow-lg"
-                  style={{ maxHeight: 'calc(100vh - 120px)' }}
-                  alt="Floor plan"
-                />
-                <canvas
-                  ref={canvasRef}
-                  className="absolute top-0 left-0 pointer-events-none rounded-xl"
-                  style={{ width: '100%', height: '100%' }}
-                />
+
+              {/* Transform wrapper — image + canvas move together */}
+              <div
+                style={{
+                  transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                  transformOrigin: '0 0',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '24px',
+                  background: 'var(--review-bg, rgba(0,0,0,0.05))',
+                }}
+              >
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <img
+                    ref={imageRef}
+                    src={reviewingPage?.dataUrl || scanImage}
+                    className="max-w-full max-h-full object-contain rounded-xl shadow-lg"
+                    style={{ maxHeight: 'calc(100vh - 120px)', display: 'block' }}
+                    alt="Floor plan"
+                    draggable={false}
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute top-0 left-0 pointer-events-none rounded-xl"
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                </div>
+              </div>
+
+              {/* Zoom indicator */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 8,
+                  right: 8,
+                  background: 'rgba(0,0,0,0.5)',
+                  color: 'white',
+                  borderRadius: 6,
+                  padding: '2px 8px',
+                  fontSize: 12,
+                  pointerEvents: 'none',
+                  transition: 'opacity 0.3s',
+                  opacity: showZoomIndicator ? 1 : 0,
+                  zIndex: 10,
+                }}
+              >
+                {Math.round(zoom * 100)}%
               </div>
             </div>
 

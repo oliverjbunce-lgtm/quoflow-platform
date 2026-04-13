@@ -30,8 +30,18 @@ export default function PlanReviewClient() {
   const [showAddModal, setShowAddModal] = useState(false)
   const [pendingBbox, setPendingBbox] = useState(null)
 
+  // Pan/zoom state
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isPanning, setIsPanning] = useState(false)
+  const [showZoomIndicator, setShowZoomIndicator] = useState(false)
+
   const canvasRef = useRef(null)
   const imageRef = useRef(null)
+  const containerRef = useRef(null)
+  const panStart = useRef(null)
+  const lastTouchDist = useRef(null)
+  const zoomIndicatorTimer = useRef(null)
   const saveTimers = useRef({})
 
   // ── Data loading ──────────────────────────────────────────────────────────
@@ -281,6 +291,72 @@ export default function PlanReviewClient() {
     return () => ro.disconnect()
   }, [detections, currentPage, pages, selectedDetId, drawRect])
 
+  // ── Pan/zoom handlers ─────────────────────────────────────────────────────
+
+  const showZoom = useCallback(() => {
+    setShowZoomIndicator(true)
+    if (zoomIndicatorTimer.current) clearTimeout(zoomIndicatorTimer.current)
+    zoomIndicatorTimer.current = setTimeout(() => setShowZoomIndicator(false), 1500)
+  }, [])
+
+  const handleWheel = useCallback((e) => {
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? 0.9 : 1.1
+    setZoom(z => Math.min(5, Math.max(0.5, z * delta)))
+    showZoom()
+  }, [showZoom])
+
+  const handlePanMouseDown = useCallback((e) => {
+    if (drawMode) return
+    setIsPanning(true)
+    panStart.current = { x: e.clientX - pan.x, y: e.clientY - pan.y }
+  }, [drawMode, pan])
+
+  const handlePanMouseMove = useCallback((e) => {
+    if (!isPanning || drawMode) return
+    setPan({ x: e.clientX - panStart.current.x, y: e.clientY - panStart.current.y })
+  }, [isPanning, drawMode])
+
+  const handlePanMouseUp = useCallback(() => setIsPanning(false), [])
+
+  const handleDoubleClick = useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+    showZoom()
+  }, [showZoom])
+
+  // Touch pinch/pan
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastTouchDist.current = Math.hypot(dx, dy)
+    } else if (e.touches.length === 1 && !drawMode) {
+      setIsPanning(true)
+      panStart.current = { x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y }
+    }
+  }, [drawMode, pan])
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length === 2 && lastTouchDist.current) {
+      e.preventDefault()
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.hypot(dx, dy)
+      const scale = dist / lastTouchDist.current
+      setZoom(z => Math.min(5, Math.max(0.5, z * scale)))
+      lastTouchDist.current = dist
+      showZoom()
+    } else if (e.touches.length === 1 && isPanning && !drawMode) {
+      setPan({ x: e.touches[0].clientX - panStart.current.x, y: e.touches[0].clientY - panStart.current.y })
+    }
+  }, [isPanning, drawMode, showZoom])
+
+  const handleTouchEnd = useCallback(() => {
+    lastTouchDist.current = null
+    setIsPanning(false)
+  }, [])
+
   // ── Canvas mouse handlers ─────────────────────────────────────────────────
 
   const handleCanvasMouseDown = useCallback(
@@ -288,8 +364,9 @@ export default function PlanReviewClient() {
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
+      // Account for CSS scale transform: convert visual coords → canvas pixel coords
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width)
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height)
 
       if (drawMode) {
         setDrawStart({ x, y })
@@ -325,8 +402,8 @@ export default function PlanReviewClient() {
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width)
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height)
       setDrawRect({ x1: drawStart.x, y1: drawStart.y, x2: x, y2: y })
     },
     [drawMode, drawStart]
@@ -338,8 +415,8 @@ export default function PlanReviewClient() {
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const y = e.clientY - rect.top
+      const x = (e.clientX - rect.left) * (canvas.width / rect.width)
+      const y = (e.clientY - rect.top) * (canvas.height / rect.height)
 
       const pixX1 = Math.min(drawStart.x, x)
       const pixY1 = Math.min(drawStart.y, y)
@@ -503,25 +580,60 @@ export default function PlanReviewClient() {
           )}
         </div>
 
-        {/* PDF main view */}
-        <div className="flex-1 relative overflow-hidden flex items-center justify-center p-4 bg-gray-100 dark:bg-zinc-800/50">
+        {/* PDF main view — pan/zoom container */}
+        <div
+          ref={containerRef}
+          className="flex-1 relative overflow-hidden w-full bg-gray-100 dark:bg-zinc-800/50"
+          onWheel={handleWheel}
+          onMouseDown={handlePanMouseDown}
+          onMouseMove={handlePanMouseMove}
+          onMouseUp={handlePanMouseUp}
+          onMouseLeave={handlePanMouseUp}
+          onDoubleClick={handleDoubleClick}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          style={{ cursor: drawMode ? 'crosshair' : isPanning ? 'grabbing' : 'grab' }}
+        >
           {currentPageData ? (
-            <div className="relative max-w-full max-h-full">
-              <img
-                ref={imageRef}
-                src={currentPageData.dataUrl}
-                className="max-w-full max-h-full object-contain rounded-xl shadow-xl"
-                style={{ maxHeight: 'calc(100vh - 160px)' }}
-                alt={`Page ${currentPage}`}
-              />
-              <canvas
-                ref={canvasRef}
-                className="absolute top-0 left-0 rounded-xl"
-                style={{ cursor: drawMode ? 'crosshair' : 'default' }}
-                onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseUp={handleCanvasMouseUp}
-              />
+            <>
+              {/* Transform wrapper — image + canvas scale together */}
+              <div
+                style={{
+                  transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+                  transformOrigin: '0 0',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '16px',
+                }}
+              >
+                <div style={{ position: 'relative', display: 'inline-block' }}>
+                  <img
+                    ref={imageRef}
+                    src={currentPageData.dataUrl}
+                    className="max-w-full max-h-full object-contain rounded-xl shadow-xl"
+                    style={{ maxHeight: 'calc(100vh - 160px)', display: 'block' }}
+                    alt={`Page ${currentPage}`}
+                    draggable={false}
+                  />
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute rounded-xl"
+                    style={{ cursor: drawMode ? 'crosshair' : 'default', pointerEvents: drawMode ? 'auto' : 'auto' }}
+                    onMouseDown={handleCanvasMouseDown}
+                    onMouseMove={handleCanvasMouseMove}
+                    onMouseUp={handleCanvasMouseUp}
+                  />
+                </div>
+              </div>
+
+              {/* Draw mode banner — outside transform so it stays fixed */}
               {drawMode && (
                 <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
                   <div className="px-4 py-2 rounded-full bg-white/90 dark:bg-zinc-900/90 shadow-lg border border-[#0A84FF]/30 text-sm font-medium text-[#0A84FF] whitespace-nowrap backdrop-blur-sm">
@@ -529,9 +641,29 @@ export default function PlanReviewClient() {
                   </div>
                 </div>
               )}
-            </div>
+
+              {/* Zoom indicator */}
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 8,
+                  right: 8,
+                  background: 'rgba(0,0,0,0.5)',
+                  color: 'white',
+                  borderRadius: 6,
+                  padding: '2px 8px',
+                  fontSize: 12,
+                  pointerEvents: 'none',
+                  transition: 'opacity 0.3s',
+                  opacity: showZoomIndicator ? 1 : 0,
+                  zIndex: 10,
+                }}
+              >
+                {Math.round(zoom * 100)}%
+              </div>
+            </>
           ) : (
-            <div className="flex flex-col items-center gap-3 text-gray-400">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-gray-400">
               <div className="w-8 h-8 border-2 border-gray-300 border-t-[#0A84FF] rounded-full animate-spin" />
               <p className="text-sm">Loading PDF…</p>
             </div>
