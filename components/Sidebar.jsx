@@ -28,7 +28,7 @@ export default function Sidebar({ user, tenant, pendingCount = 0, analysisRunnin
       {/* Logo */}
       <div className="px-5 pt-6 pb-4">
         <Link href="/admin/dashboard" className="flex items-center">
-          <Image src="/logotype.png" alt="Quoflow" width={140} height={37} priority />
+          <Image src="/logo.png" alt="Quoflow" width={56} height={36} priority />
         </Link>
       </div>
 

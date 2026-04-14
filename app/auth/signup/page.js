@@ -49,7 +49,7 @@ function SignupForm() {
       >
         <div className="text-center mb-10">
           <div className="inline-flex items-center mb-3">
-            <Image src="/logotype.png" alt="Quoflow" width={160} height={43} priority />
+            <Image src="/logo.png" alt="Quoflow" width={80} height={51} priority />
           </div>
           <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Create account</h1>
           <p className="text-[#8e8e93] mt-1">You need an invite to sign up</p>
