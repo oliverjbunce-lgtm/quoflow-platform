@@ -50,7 +50,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center mb-3">
-            <Image src="/logo.png" alt="Quoflow" width={80} height={51} priority />
+            <Image src="/wordmark.png" alt="Quoflow" width={140} height={50} priority />
           </div>
           <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Welcome back</h1>
           <p className="text-[#8e8e93] mt-1">Sign in to your account</p>
