@@ -12,7 +12,7 @@ const inter = Inter({
 export const metadata = {
   title: 'Quoflow — AI-powered quoting for building supply',
   description: 'Upload floor plans, detect components, generate quotes instantly.',
-  icons: { icon: '/favicon.svg' },
+  icons: { icon: '/logo.png' },
 }
 
 export default function RootLayout({ children }) {

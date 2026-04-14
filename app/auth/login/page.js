@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -48,12 +49,8 @@ export default function LoginPage() {
       >
         {/* Logo */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 mb-3">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-              <rect width="32" height="32" rx="8" fill="#0A84FF"/>
-              <path d="M8 8h10v2H10v12H8V8zM12 12h12v2H14v8h-2V12z" fill="white"/>
-            </svg>
-            <span className="text-2xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Quoflow</span>
+          <div className="inline-flex items-center mb-3">
+            <Image src="/logotype.png" alt="Quoflow" width={160} height={43} priority />
           </div>
           <h1 className="text-3xl font-bold tracking-[-0.02em] text-[#1c1c1e] dark:text-[#f5f5f7]">Welcome back</h1>
           <p className="text-[#8e8e93] mt-1">Sign in to your account</p>
